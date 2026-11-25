@@ -1,4 +1,4 @@
-# abg3d-screen
+# ABG3D-Screen
 
 A touchscreen interface for Klipper and Moonraker, built for a Raspberry Pi 4B (1 GB) with a touchscreen. It runs as a systemd service that starts on every boot and replaces KlipperScreen or HelixScreen.
 
