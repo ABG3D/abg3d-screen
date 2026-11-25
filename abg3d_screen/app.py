@@ -97,6 +97,9 @@ class App:
                     "on this printer, then enable it.")
         return ""
 
+    def toggle_setting(self, key):
+        self.settings.set(key, not self.settings.get(key))
+
     def toggle_quit(self):
         self.settings.set("allow_quit", not self.settings.get("allow_quit"))
 

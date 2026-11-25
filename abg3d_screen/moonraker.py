@@ -38,6 +38,11 @@ class MoonrakerClient:
     def get(self, path, params=None):
         return self._request("GET", path, params=params)
 
+    def get_bytes(self, path):
+        req = urllib.request.Request(self.base_url + path, method="GET")
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            return resp.read()
+
     def post(self, path, body=None, params=None):
         return self._request("POST", path, params=params, body=body)
 

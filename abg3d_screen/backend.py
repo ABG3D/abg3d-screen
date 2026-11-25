@@ -6,11 +6,13 @@ works. System actions (restart Klipper, reboot, shut down) go through sudo rules
 written by install.sh, so they work in both modes.
 """
 import collections
+import posixpath
 import random
 import socket
 import subprocess
 import threading
 import time
+import urllib.parse
 
 from . import detect
 from .detect import MMU_NAMES
@@ -177,6 +179,23 @@ class Backend:
             return self.client.gcode(script)
         self._demo_gcode(script)
         return "demo"
+
+    def thumbnail_bytes(self, filename):
+        """PNG bytes of the largest print thumbnail for a G-code file, or None."""
+        if not self.online or not filename:
+            return None
+        try:
+            meta = self.client.get("/server/files/metadata",
+                                   {"filename": filename})["result"]
+            thumbs = meta.get("thumbnails") or []
+            if not thumbs:
+                return None
+            best = max(thumbs, key=lambda t: t.get("width", 0))
+            rel = posixpath.normpath(posixpath.join(posixpath.dirname(filename),
+                                                    best["relative_path"]))
+            return self.client.get_bytes("/server/files/gcodes/" + urllib.parse.quote(rel))
+        except Exception:
+            return None
 
     def console_lines(self, count=60):
         """Console history for the Console screen. Never raises, so polling cannot spam errors."""

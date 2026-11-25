@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 
 from .detect import temp_object_names
+from .widgets import ScrollList
 
 WINDOW_S = 300        # graph window in seconds
 SAMPLE_S = 1.0        # one graph sample per second
@@ -46,7 +47,7 @@ class MonitorView(tk.Frame):
         side.pack_propagate(False)
         tk.Label(side, text="Sensors", font=self.sc.font(12, "bold"), fg=self.t["accent"],
                  bg=self.t["panel"]).pack(anchor="w", padx=self.sc.px(10), pady=(self.sc.px(8), self.sc.px(4)))
-        self.rows = tk.Frame(side, bg=self.t["panel"])
+        self.rows = ScrollList(side, self.app, visible_rows=5, row_h=46, bg=self.t["panel"])
         self.rows.pack(fill="both", expand=True, padx=self.sc.px(6))
         self.canvas = tk.Canvas(self, bg=self.t["panel"], highlightthickness=0, bd=0)
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -89,14 +90,13 @@ class MonitorView(tk.Frame):
 
     # ---- rows ------------------------------------------------------------
     def _rebuild(self, names):
-        for child in self.rows.winfo_children():
-            child.destroy()
+        self.rows.clear()
         self._names = names
         self._colour = {}
         self._rows = {}
         for i, obj in enumerate(names):
             self._colour[obj] = COLOURS[i % len(COLOURS)]
-            row = tk.Canvas(self.rows, height=self.sc.px(46), bg=self.t["panel"],
+            row = tk.Canvas(self.rows.inner, height=self.sc.px(46), bg=self.t["panel"],
                             highlightthickness=0, bd=0)
             row.pack(fill="x", pady=self.sc.px(3))
             row.bind("<ButtonRelease-1>", lambda _e, o=obj: self._toggle(o))

@@ -19,6 +19,8 @@ DEFAULTS = {
     "monitor_disabled": [],  # sensors the user has switched off on the Home monitor
     "macro_favs": [],        # Klipper macros pinned as favourites
     "macro_hidden": [],      # Klipper macros hidden from the macro list
+    "pin_bedfans": False,    # enable bed fan controls on the Control tab
+    "pin_caselight": False,  # enable case light control on the Control tab
 }
 
 

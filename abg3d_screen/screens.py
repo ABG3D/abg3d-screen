@@ -1,86 +1,114 @@
 """Tab pages. Each page is a Frame that is rebuilt whenever the theme changes."""
+import base64
+import math
 import tkinter as tk
 
 
 from .detect import MMU_NAMES
 from .monitor import MonitorView
-from .page import Page
+from .page import Page, fmt_time
 from .mmu import is_active, load_mmu_commands
-from .widgets import ScrollList, Switch
+from .widgets import ScrollList, Switch, round_rect
 from . import network
 from .keyboard import OnScreenKeyboard
 from .wizard import load_printers
 
 JOG_FEED_XY, JOG_FEED_Z = 3000, 600
+# Klipper fan object for the hotend fan. Change this if your fan section has another name.
+HOTEND_FAN = "hotend_fan"
 PRINT_ACTIVE = ("printing", "paused")
 
 
 class HomePage(Page):
-    """Home: real-time temperature monitor in the centre, job controls on the right."""
+    """Home: live temperature monitor on the left, print preview on the right."""
+
+    PREVIEW_W, PREVIEW_H = 206, 150
 
     def build(self):
         pad = self.px(12)
-        right = tk.Frame(self, bg=self.t["bg"], width=self.px(236))
+        right = self.panel(self)
+        right.configure(width=self.px(230))
         right.pack(side="right", fill="y", padx=(pad // 2, pad), pady=pad)
         right.pack_propagate(False)
         self.monitor = MonitorView(self, self.app)
         self.monitor.pack(side="left", fill="both", expand=True, padx=(pad, pad // 2), pady=pad)
 
-        grid = tk.Frame(right, bg=self.t["bg"])
-        grid.pack(fill="both", expand=True)
-        h, fs = self.px(78), 13
-        self.btn_pause = self.button(grid, "Pause", self._toggle_pause, "primary", height=h,
-                                     font=fs, icon=self.app.icon("pause", 28))
-        self.btn_cancel = self.button(grid, "Cancel", lambda: self._print_action("cancel"),
-                                      "danger", confirm=True, height=h, font=fs,
-                                      icon=self.app.icon("cancel", 28))
-        self.btn_home = self.button(grid, "Home All", lambda: self.gcode("G28", "Homing all axes"),
-                                    height=h, font=fs, icon=self.app.icon("home_all", 28))
-        self.btn_cool = self.button(grid, "Cool Down",
-                                    lambda: self.gcode("M104 S0\nM140 S0\nM107", "Cooling down"),
-                                    height=h, font=fs, icon=self.app.icon("temps", 28))
-        self.btn_temps = self.button(grid, "Set Temps", self._open_temps, height=h, font=fs,
-                                     icon=self.app.icon("temps", 28))
-        self.btn_estop = self.button(grid, "E-Stop", self._estop, "danger", confirm=True,
-                                     height=h, font=fs, icon=self.app.icon("stop", 28))
-        cells = [self.btn_pause, self.btn_cancel, self.btn_home,
-                 self.btn_cool, self.btn_temps, self.btn_estop]
-        for i, btn in enumerate(cells):
-            btn.grid(row=i // 2, column=i % 2, sticky="nsew", padx=3, pady=3)
-        for col in range(2):
-            grid.columnconfigure(col, weight=1, uniform="home")
-        for row in range(3):
-            grid.rowconfigure(row, weight=1, uniform="homerow")
-        self._ext_target = 0.0
-        self._bed_target = 0.0
-        self._state = "standby"
+        self.preview = tk.Canvas(right, width=self.px(self.PREVIEW_W),
+                                 height=self.px(self.PREVIEW_H), bg=self.t["panel_alt"],
+                                 highlightthickness=0, bd=0)
+        self.preview.pack(padx=pad, pady=(pad, self.px(8)))
+        self.file_lbl = self.label(right, "No file loaded", 11, "bold", bg=self.t["panel"],
+                                   wraplength=self.px(206), justify="left")
+        self.file_lbl.pack(anchor="w", padx=pad)
+        self.status_lbl = self.label(right, "Idle", 10, color=self.t["subtext"],
+                                     bg=self.t["panel"], wraplength=self.px(206), justify="left")
+        self.status_lbl.pack(anchor="w", padx=pad, pady=(self.px(4), 0))
+        self.progress = self.meter(right, height=10)
+        self.progress.pack(fill="x", padx=pad, pady=self.px(8))
+        self.time_lbl = self.label(right, "", 10, color=self.t["subtext"], bg=self.t["panel"])
+        self.time_lbl.pack(anchor="w", padx=pad)
+        self._name = None
+        self._cache = {}
+        self._draw_preview(None)
+
+    def _draw_preview(self, image):
+        c = self.preview
+        c.delete("all")
+        w, h = self.px(self.PREVIEW_W), self.px(self.PREVIEW_H)
+        if image is not None:
+            c.create_image(w // 2, h // 2, image=image)
+            return
+        round_rect(c, 2, 2, w - 2, h - 2, self.px(12), fill=self.t["panel_alt"],
+                   outline=self.t["border"])
+        c.create_text(w // 2, h // 2 - self.px(8), text="Print preview", fill=self.t["text"],
+                      font=self.font(12, "bold"))
+        c.create_text(w // 2, h // 2 + self.px(14), text="no thumbnail",
+                      fill=self.t["subtext"], font=self.font(10))
+
+    def _show_file(self, name, online):
+        if not name:
+            self._draw_preview(None)
+            return
+        if name in self._cache:
+            self._draw_preview(self._cache[name])
+            return
+        self._draw_preview(None)
+        if online:
+            self.app.run_async(lambda: self.app.backend.thumbnail_bytes(name), None,
+                               on_done=lambda data: self._thumb_ready(name, data))
+
+    def _thumb_ready(self, name, data):
+        if name != self._name or not data:
+            return
+        try:
+            img = tk.PhotoImage(data=base64.b64encode(data).decode("ascii"))
+        except tk.TclError:
+            return  # format Tk cannot read: keep the placeholder
+        factor = max(1, math.ceil(img.width() / self.px(self.PREVIEW_W)),
+                     math.ceil(img.height() / self.px(self.PREVIEW_H)))
+        img = img.subsample(factor) if factor > 1 else img
+        self._cache[name] = img
+        self._draw_preview(img)
 
     def refresh(self, st, online, demo):
-        ext = st.get("extruder") or {}
-        bed = st.get("heater_bed") or {}
-        self._ext_target = float(ext.get("target") or 0)
-        self._bed_target = float(bed.get("target") or 0)
+        ps = st.get("print_stats") or {}
+        state = ps.get("state") or "standby"
+        name = ps.get("filename") or ""
+        prog = float((st.get("display_status") or {}).get("progress") or 0)
+        dur = float(ps.get("print_duration") or 0)
         self.monitor.refresh(st)
-        state = (st.get("print_stats") or {}).get("state") or "standby"
-        self._state = state
-        active = state in PRINT_ACTIVE
-        paused = state == "paused"
-        self.btn_pause.set_text("Resume" if paused else "Pause")
-        self.btn_pause.set_icon(self.app.icon("play" if paused else "pause", 28))
-        self.btn_pause.set_enabled(active)
-        self.btn_cancel.set_enabled(active)
-
-    def _open_temps(self):
-        self.app.open_temp_modal(self._ext_target, self._bed_target)
-
-    def _toggle_pause(self):
-        self._print_action("resume" if self._state == "paused" else "pause")
-
-    def _print_action(self, action):
-        self.app.run_async(lambda: self.app.backend.print_action(action), f"Print {action} sent")
-
-    def _estop(self):
-        self.app.run_async(self.app.backend.emergency_stop, "Emergency stop sent")
+        if name != self._name:
+            self._name = name
+            self._show_file(name, online)
+        self.file_lbl.configure(text=name or "No file loaded")
+        if state in PRINT_ACTIVE:
+            self.status_lbl.configure(text=f"{state.capitalize()}  \u00b7  {prog * 100:.0f}%")
+            self.time_lbl.configure(text=f"Elapsed {fmt_time(dur)}")
+            self.progress.set(prog)
+        else:
+            self.status_lbl.configure(text="Demo mode" if demo else state.capitalize())
+            self.time_lbl.configure(text="")
+            self.progress.set(1.0 if state == "complete" else 0.0)
 
 
 class ControlPage(Page):
@@ -90,6 +118,7 @@ class ControlPage(Page):
     TABS = [("movement", "Movement", "move"), ("fan", "Fan Control", "fan"),
             ("led", "LED Control", "led")]
     FAN_STEPS = [("Off", 0), ("25%", 64), ("50%", 128), ("75%", 191), ("100%", 255)]
+    BEDFAN_STEPS = [("Off", "0.0"), ("20%", "0.2"), ("50%", "0.5"), ("80%", "0.8"), ("100%", "1.0")]
     LED_COLOURS = [("Off", 0, 0, 0), ("White", 1, 1, 1), ("Red", 1, 0, 0),
                    ("Green", 0, 1, 0), ("Blue", 0, 0, 1)]
 
@@ -209,26 +238,49 @@ class ControlPage(Page):
     def _build_fan(self):
         pad = self.px(12)
         pane = self.panel(self)
+        self.hotend_sw = Switch(pane, "Hotend fan", self._toggle_hotend, self.app, on=False,
+                                height=44)
+        self.hotend_sw.pack(fill="x", padx=pad, pady=(pad, 0))
         self.label(pane, "Part fan", 14, "bold", bg=self.t["panel"]).pack(
-            anchor="w", padx=pad, pady=(pad, 0))
+            anchor="w", padx=pad, pady=(self.px(10), 0))
         row = tk.Frame(pane, bg=self.t["panel"])
-        row.pack(fill="x", padx=pad, pady=pad)
+        row.pack(fill="x", padx=pad, pady=(self.px(4), 0))
         for name, value in self.FAN_STEPS:
             self.button(row, name, lambda v=value, n=name: self.gcode(f"M106 S{v}", f"Part fan {n}"),
-                        height=90, font=13).pack(side="left", fill="x", expand=True, padx=3)
-        self.label(pane, "Each button sends M106 straight away.", 10, color=self.t["subtext"],
-                   bg=self.t["panel"]).pack(anchor="w", padx=pad)
+                        height=80, font=13).pack(side="left", fill="x", expand=True, padx=3)
+        self.bedfan_box = tk.Frame(pane, bg=self.t["panel"])
+        self.label(self.bedfan_box, "Bed fans", 14, "bold", bg=self.t["panel"]).pack(anchor="w")
+        bed = tk.Frame(self.bedfan_box, bg=self.t["panel"])
+        bed.pack(fill="x", pady=(self.px(4), 0))
+        for name, value in self.BEDFAN_STEPS:
+            self.button(bed, name,
+                        lambda v=value, n=name: self.gcode(f"SET_FAN_SPEED FAN=bedfans SPEED={v}",
+                                                           f"Bed fans {n}"),
+                        height=70, font=13).pack(side="left", fill="x", expand=True, padx=3)
+        self._bedfan_shown = False
         return pane
 
-    # ---- LED Control ------------------------------------------------------
+    def _toggle_hotend(self):
+        on = self.hotend_sw.on
+        self.gcode(f"SET_FAN_SPEED FAN={HOTEND_FAN} SPEED={'1.0' if on else '0.0'}",
+                   f"Hotend fan {'on' if on else 'off'}")
+
     def _build_led(self):
         pad = self.px(12)
         pane = self.panel(self)
         self.label(pane, "LED colour", 14, "bold", bg=self.t["panel"]).pack(
             anchor="w", padx=pad, pady=(pad, 0))
+        self.case_sw = Switch(pane, "Case light", self._toggle_case, self.app, on=False,
+                              height=44)
         self.led_box = tk.Frame(pane, bg=self.t["panel"])
         self.led_box.pack(fill="both", expand=True, padx=pad, pady=pad)
+        self._case_shown = False
         return pane
+
+    def _toggle_case(self):
+        on = self.case_sw.on
+        self.gcode(f"SET_PIN PIN=caselight VALUE={'1.00' if on else '0.00'}",
+                   f"Case light {'on' if on else 'off'}")
 
     def _build_leds(self, names):
         for child in self.led_box.winfo_children():
@@ -254,6 +306,7 @@ class ControlPage(Page):
 
     # ---- lifecycle --------------------------------------------------------
     def refresh(self, st, online, demo):
+        pad = self.px(12)
         state = (st.get("print_stats") or {}).get("state") or "standby"
         locked = state in PRINT_ACTIVE
         det = self.app.backend.detection
@@ -264,6 +317,21 @@ class ControlPage(Page):
         if leds != self._leds_key:
             self._leds_key = leds
             self._build_leds(list(leds))
+        s = self.app.settings
+        bed_on = bool(s.get("pin_bedfans"))
+        if bed_on != self._bedfan_shown:
+            if bed_on:
+                self.bedfan_box.pack(fill="x", padx=pad, pady=(self.px(12), pad))
+            else:
+                self.bedfan_box.pack_forget()
+            self._bedfan_shown = bed_on
+        case_on = bool(s.get("pin_caselight"))
+        if case_on != self._case_shown:
+            if case_on:
+                self.case_sw.pack(fill="x", padx=pad, pady=(0, self.px(8)), before=self.led_box)
+            else:
+                self.case_sw.pack_forget()
+            self._case_shown = case_on
         for btn in self.jog_buttons + self.extra_buttons:
             btn.set_enabled(not locked)
 
@@ -654,26 +722,18 @@ class SettingsPage(Page):
         self.quit_sw.pack(fill="x")
         self.quit_btn = self.button(top, "Quit", self.app.quit, "ghost", confirm=True,
                                     height=64, font=12, icon=self.app.icon("quit", 26))
-        self.label(pane, "Klipper pin assignments (from printer.cfg, read-only)", 11, "bold",
-                   bg=self.t["panel"]).pack(anchor="w", padx=pad, pady=(self.px(10), 0))
-        self.pin_count = self.label(pane, "", 10, color=self.t["subtext"], bg=self.t["panel"])
-        self.pin_count.pack(anchor="w", padx=pad)
-        self.pin_list = ScrollList(pane, self.app, visible_rows=3, row_h=32, bg=self.t["panel"])
-        self.pin_list.pack(fill="both", expand=True, padx=pad, pady=(self.px(4), pad))
+        self.label(pane, "Pin configs", 11, "bold", bg=self.t["panel"]).pack(
+            anchor="w", padx=pad, pady=(self.px(10), 0))
+        self.label(pane, "Enable optional outputs. Their controls appear on the Control tab.", 10,
+                   color=self.t["subtext"], bg=self.t["panel"]).pack(anchor="w", padx=pad)
+        self.bedfan_sw = Switch(pane, "Bed fans", lambda: self.app.toggle_setting("pin_bedfans"),
+                                self.app, on=bool(self.app.settings.get("pin_bedfans")), height=44)
+        self.bedfan_sw.pack(fill="x", padx=pad, pady=(self.px(6), 0))
+        self.case_pin_sw = Switch(pane, "Case light",
+                                  lambda: self.app.toggle_setting("pin_caselight"), self.app,
+                                  on=bool(self.app.settings.get("pin_caselight")), height=44)
+        self.case_pin_sw.pack(fill="x", padx=pad, pady=(self.px(8), pad))
         return pane
-
-    def _refresh_pins(self, pins):
-        key = tuple(pins)
-        if key == self._pin_key:
-            return
-        self._pin_key = key
-        self.pin_list.clear()
-        if not pins:
-            self.pin_count.configure(text="No pin settings found in the config folder.")
-            return
-        self.pin_count.configure(text=f"{len(pins)} pin settings")
-        for section, pin_key, value in pins:
-            self.pin_list.add(f"{section}  \u00b7  {pin_key} = {value}", None, "ghost")
 
     # ---- refresh -----------------------------------------------------------
     def refresh(self, st, online, demo):
@@ -685,6 +745,8 @@ class SettingsPage(Page):
         self.warning.configure(text=self.app.mmu_block_message())
         self.mmu_info.configure(text=f"Detected: {det.get('mmu_name', 'None detected')}")
         self.quit_sw.set_on(bool(s.get("allow_quit")))
+        self.bedfan_sw.set_on(bool(s.get("pin_bedfans")))
+        self.case_pin_sw.set_on(bool(s.get("pin_caselight")))
         if s.get("allow_quit") and not self._quit_shown:
             self.quit_btn.pack(fill="x", pady=(self.px(6), 0))
             self._quit_shown = True
@@ -692,4 +754,3 @@ class SettingsPage(Page):
             self.quit_btn.pack_forget()
             self._quit_shown = False
         self._refresh_macros(det.get("macros") or [])
-        self._refresh_pins(det.get("pins") or [])
