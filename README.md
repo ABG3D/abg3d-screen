@@ -118,6 +118,8 @@ The unit limits memory with `MemoryHigh=350M` and `MemoryMax=450M`, which protec
 cd ~/abg3d-screen
 ./uninstall.sh            # keep saved settings
 ./uninstall.sh --purge    # also delete ~/.config/abg3d-screen
+cd ~
+rm -rf abg3d-screen.      # deletes the abg3d-screen directory to clear all traces
 ```
 
 The uninstaller:
