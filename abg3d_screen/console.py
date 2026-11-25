@@ -29,7 +29,7 @@ class ConsolePage(Page):
         self.scroll_sw.pack(side="right", padx=self.px(6), pady=self.px(6))
 
         # packed before the log, so the log fills the space between the header and the entry
-        self._entry_row = tk.Frame(self, bg=self.t["bg"])
+        self._entry_row = self.hexbg(self)
         self._entry_row.pack(side="bottom", fill="x", padx=pad, pady=pad)
         self.entry = tk.Entry(self._entry_row, font=("DejaVu Sans Mono", self.font(12)[1]),
                               bg=self.t["panel_alt"], fg=self.t["text"],

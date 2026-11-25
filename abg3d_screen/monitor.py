@@ -8,6 +8,7 @@ import time
 import tkinter as tk
 
 from .detect import temp_object_names
+from .honeycomb import HexFrame
 from .widgets import ScrollList, drag_moved
 
 WINDOW_S = 300        # graph window in seconds
@@ -29,12 +30,12 @@ def display_name(obj):
     return obj
 
 
-class MonitorView(tk.Frame):
+class MonitorView(HexFrame):
     def __init__(self, master, app):
         self.app = app
         self.t = app.theme
         self.sc = app.scale
-        super().__init__(master, bg=self.t["bg"])
+        super().__init__(master, app)
         self.history = collections.deque(maxlen=WINDOW_S)
         self._last_sample = 0.0
         self._names = []
@@ -42,7 +43,7 @@ class MonitorView(tk.Frame):
         self._rows = {}
         self._values = {}
 
-        side = tk.Frame(self, bg=self.t["panel"], width=self.sc.px(200))
+        side = HexFrame(self, app, base_key="panel", width=self.sc.px(200))
         side.pack(side="left", fill="y", padx=(0, self.sc.px(6)))
         side.pack_propagate(False)
         tk.Label(side, text="Sensors", font=self.sc.font(12, "bold"), fg=self.t["accent"],

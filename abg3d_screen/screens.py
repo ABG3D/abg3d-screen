@@ -145,7 +145,7 @@ class ControlPage(Page):
         self._off_row = None
         self._temp_box = None
 
-        bar = tk.Frame(self, bg=self.t["bg"])
+        bar = self.hexbg(self)
         bar.pack(side="top", fill="x", padx=pad, pady=(pad, 0))
         self.tab_btns = {}
         for i, (key, text, icon) in enumerate(self.TABS):
@@ -488,7 +488,7 @@ class MMUPage(Page):
 
     def build(self):
         self.key = None
-        self.body = tk.Frame(self, bg=self.t["bg"])
+        self.body = self.hexbg(self)
         self.body.pack(fill="both", expand=True, padx=self.px(12), pady=self.px(12))
 
     def on_show(self):
@@ -550,7 +550,7 @@ class SystemPage(Page):
 
     def build(self):
         pad = self.px(12)
-        actions = tk.Frame(self, bg=self.t["bg"], width=self.px(230))
+        actions = self.hexbg(self, width=self.px(230))
         actions.pack(side="right", fill="y", padx=(0, pad), pady=pad)
         actions.pack_propagate(False)
         info = self.panel(self)
@@ -614,7 +614,7 @@ class SettingsPage(Page):
         self._quit_shown = False
         self._pending = None
 
-        bar = tk.Frame(self, bg=self.t["bg"])
+        bar = self.hexbg(self)
         bar.pack(side="top", fill="x", padx=pad, pady=(pad, 0))
         self.tab_btns = {}
         for i, (key, icon) in enumerate(self.TABS):

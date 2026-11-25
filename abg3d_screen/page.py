@@ -32,7 +32,10 @@ class Page(HexFrame):
                         fg=color or self.t["text"], bg=bg or parent.cget("bg"), **kw)
 
     def panel(self, parent, **kw):
-        return tk.Frame(parent, bg=self.t["panel"], **kw)
+        return HexFrame(parent, self.app, base_key="panel", **kw)
+
+    def hexbg(self, parent, **kw):
+        return HexFrame(parent, self.app, base_key="bg", **kw)
 
     def button(self, parent, text, command, style="secondary", **kw):
         return RoundButton(parent, text, command, self.app, style=style, **kw)

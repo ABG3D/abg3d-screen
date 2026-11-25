@@ -1,15 +1,16 @@
 """Honeycomb backdrop.
 
-Hexagon outlines fade from the theme accent (top-left) to the theme background
-(bottom-right). HexFrame is a canvas that paints the pattern and can hold packed or
-placed children on top of it. Tk widgets are opaque, so the pattern shows wherever
-no child covers it: the splash, the header, the tab bar and the page margins.
+Hexagon outlines fade from the theme accent (top-left) to the surface colour (bottom-right).
+HexFrame is a canvas that paints the pattern and holds packed or placed children on top.
+base_key picks the surface colour: "bg" for the page backdrop, "panel" for cards. Outlines
+are blended from that colour, so they follow the active theme. The pattern is repainted
+whenever the widget changes size, and the whole UI is rebuilt when the theme changes.
 """
 import math
 import tkinter as tk
 
 HEX_R = 22            # base px radius of one hexagon
-MAX_STRENGTH = 0.22   # how far the top-left outlines move toward the accent colour
+MAX_STRENGTH = 0.30   # how far the top-left outlines move from the surface colour toward the accent
 
 
 def mix(c1, c2, t):
@@ -19,10 +20,11 @@ def mix(c1, c2, t):
 
 
 class HexFrame(tk.Canvas):
-    def __init__(self, master, app, **kw):
+    def __init__(self, master, app, base_key="bg", **kw):
         self.app = app
         self.sc = app.scale
-        super().__init__(master, bg=app.theme["bg"], highlightthickness=0, bd=0, **kw)
+        self.base_key = base_key
+        super().__init__(master, bg=app.theme[base_key], highlightthickness=0, bd=0, **kw)
         self.bind("<Configure>", lambda _e: self.paint())
 
     def paint(self):
@@ -31,6 +33,8 @@ class HexFrame(tk.Canvas):
         if w < 4 or h < 4:
             return
         t = self.app.theme
+        base = t[self.base_key]
+        self.configure(bg=base)
         r = self.sc.px(HEX_R)
         dx, dy = r * math.sqrt(3), 1.5 * r
         cols, rows = int(w / dx) + 2, int(h / dy) + 2
@@ -39,7 +43,7 @@ class HexFrame(tk.Canvas):
                 cx = col * dx + (dx / 2 if row % 2 else 0)
                 cy = row * dy
                 f = (cx / w + cy / h) / 2           # 0 top-left, 1 bottom-right
-                colour = mix(t["bg"], t["accent"], MAX_STRENGTH * max(0.0, 1 - f) ** 1.6)
+                colour = mix(base, t["accent"], MAX_STRENGTH * max(0.0, 1 - f) ** 1.6)
                 pts = []
                 for k in range(6):
                     a = math.radians(60 * k - 30)
