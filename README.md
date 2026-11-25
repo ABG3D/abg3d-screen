@@ -55,6 +55,7 @@ abg3d-screen/
 │   ├── backend.py              Moonraker polling and demo simulation
 │   ├── console.py              Console tab
 │   ├── detect.py               Klipper, MMU, LED, macro and pin detection
+│   ├── display.py              screen timeout, DPMS and backlight power
 │   ├── honeycomb.py            honeycomb backdrop canvas
 │   ├── monitor.py              temperature monitor and graph
 │   ├── network.py              Wi-Fi and network status (nmcli)
@@ -112,14 +113,20 @@ Settings are stored in `~/.config/abg3d-screen/settings.json` and survive restar
 
 The unit limits memory with `MemoryHigh=350M` and `MemoryMax=450M`, which protects Klipper and Moonraker on a 1 GB board.
 
+## Display power
+
+Settings → Appearance → Display sets the screen timeout: Never, 1, 5, 15 or 30 minutes. Any touch or pointer movement resets the timer. The Screen Off button blanks the screen straight away.
+
+The screen is blanked with `xset dpms force off`. On panels without DPMS, such as many DSI displays, the kernel backlight `/sys/class/backlight/*/bl_power` is used instead. Writing it needs root, so install.sh allows `sudo -n /usr/bin/tee` on that path only.
+
+The first touch after the screen goes off wakes it and is absorbed, so no button underneath is pressed by accident.
+
 ## Uninstall and revert
 
 ```bash
 cd ~/abg3d-screen
 ./uninstall.sh            # keep saved settings
 ./uninstall.sh --purge    # also delete ~/.config/abg3d-screen
-cd ~
-rm -rf abg3d-screen.      # deletes the abg3d-screen directory to clear all traces
 ```
 
 The uninstaller:

@@ -127,6 +127,7 @@ class Backend:
         }
         info.update(detect.detect_printer_features(config, self.objects))
         info["leds"] = detect.led_names(self.objects)
+        info["chamber_heater"] = detect.chamber_heater_object(self.objects)
         if self.online:
             info["macros"] = detect.macro_names(self.objects)
         else:

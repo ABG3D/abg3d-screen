@@ -146,6 +146,14 @@ def read_pins(config_dir, limit=400):
     return pins
 
 
+def chamber_heater_object(objects):
+    """Moonraker object of a chamber heater (heater_generic with 'chamber' in its name), or ''."""
+    for obj in objects:
+        if obj.startswith("heater_generic ") and "chamber" in obj.lower():
+            return obj
+    return ""
+
+
 def detect_printer_features(config_dir, objects):
     """Optional gantry tools. Only offered when the printer actually defines them."""
     cfg, _ = _config_scan(config_dir)

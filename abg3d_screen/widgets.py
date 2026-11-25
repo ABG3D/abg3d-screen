@@ -31,8 +31,6 @@ TEXT_ON_FILL = {"primary", "ok", "danger"}
 
 
 class RoundButton(tk.Canvas):
-    drag_guard = None  # set by a scrollable parent; True means a drag happened, so no tap
-
     """Touch-friendly rounded button. Fires on release, so a drag-off cancels the tap."""
 
     def __init__(self, master, text, command, app, style="secondary", height=56,
@@ -108,7 +106,7 @@ class RoundButton(tk.Canvas):
         if not self.enabled or not self._down:
             return
         self._down = False
-        if self.drag_guard and self.drag_guard():
+        if drag_moved():
             self.draw()
             return
         inside = 0 <= event.x <= self.winfo_width() and 0 <= event.y <= self.winfo_height()
@@ -134,11 +132,51 @@ class RoundButton(tk.Canvas):
             pass  # widget was destroyed while the confirm timer was pending
 
 
-class ScrollList(tk.Frame):
-    """Touch-scrollable list: clipped viewport, thumb track, up/down buttons and drag to scroll.
+_LISTS = []                       # every live ScrollList
+_DRAG = {"owner": None, "start": 0, "last": 0, "moved": False}
 
-    A press that moves further than a few pixels becomes a drag. Buttons inside the list
-    then ignore that release, so scrolling never fires a tap.
+
+def _owner_of(widget):
+    w = widget
+    while w is not None:
+        for lst in _LISTS:
+            if w is lst.inner or w is lst.viewport:
+                return lst
+        w = getattr(w, "master", None)
+    return None
+
+
+def drag_press(event):
+    """Installed once on the root window. Records a touch that starts inside a scroll list."""
+    if not isinstance(event.widget, tk.Misc):
+        return
+    _DRAG.update(owner=_owner_of(event.widget), start=event.y_root, last=event.y_root, moved=False)
+
+
+def drag_motion(event):
+    owner = _DRAG["owner"]
+    if owner is None:
+        return
+    y = event.y_root
+    if not _DRAG["moved"]:
+        if abs(_DRAG["start"] - y) < owner.sc.px(8):
+            return  # still a tap
+        _DRAG["moved"] = True
+    owner.offset = max(0, min(owner.max_offset, owner.offset + _DRAG["last"] - y))
+    _DRAG["last"] = y
+    owner._place()
+
+
+def drag_moved():
+    """True when the current touch has become a drag. Buttons then ignore the release."""
+    return _DRAG["moved"]
+
+
+class ScrollList(tk.Frame):
+    """Scrollable container: clipped viewport, thumb track, up/down buttons and touch drag.
+
+    visible_rows=N shows N rows of fixed height. visible_rows=None fills the parent, and any
+    widget packed into .inner scrolls. Taps are unaffected unless the touch becomes a drag.
     """
 
     def __init__(self, master, app, visible_rows=3, row_h=36, bg=None):
@@ -149,16 +187,17 @@ class ScrollList(tk.Frame):
         super().__init__(master, bg=bg)
         self.row_base = row_h
         self.row_px = self.sc.px(row_h) + 2 * self.sc.px(3)
-        self.clip_h = self.row_px * visible_rows
+        self.fixed = visible_rows is not None
+        self.clip_h = self.row_px * visible_rows if self.fixed else 0
         self.offset = 0
         self.max_offset = 0
-        self.moved = False
-        self._start_y = None
-        self._last_y = None
         column = tk.Frame(self, bg=bg, width=self.sc.px(44))
         column.pack(side="right", fill="y")
         column.pack_propagate(False)
-        self.viewport = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0, height=self.clip_h)
+        if self.fixed:
+            self.viewport = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0, height=self.clip_h)
+        else:
+            self.viewport = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0, height=1)
         self.viewport.pack(side="left", fill="both", expand=True)
         self.inner = tk.Frame(self.viewport, bg=bg)
         self.win = self.viewport.create_window(0, 0, window=self.inner, anchor="nw")
@@ -171,8 +210,15 @@ class ScrollList(tk.Frame):
         self.track.bind("<Configure>", lambda _e: self._thumb())
         RoundButton(column, "\u25bc", lambda: self.yview_scroll(1, "units"), app, "secondary",
                     height=36, font=10).pack(fill="x", padx=2, pady=(0, 2))
-        self._bind_drag(self.viewport)
-        self._bind_drag(self.inner)
+        _LISTS.append(self)
+
+    def destroy(self):
+        if self in _LISTS:
+            _LISTS.remove(self)
+        super().destroy()
+
+    def _clip(self):
+        return self.clip_h if self.fixed else max(1, self.viewport.winfo_height())
 
     def clear(self):
         for child in self.inner.winfo_children():
@@ -183,39 +229,19 @@ class ScrollList(tk.Frame):
     def add(self, text, command, style="secondary"):
         btn = RoundButton(self.inner, text, command, self.app, style, height=self.row_base, font=10)
         btn.pack(fill="x", padx=self.sc.px(4), pady=self.sc.px(3))
-        btn.drag_guard = lambda: self.moved
-        self._bind_drag(btn)
         return btn
 
     def yview_scroll(self, number, what="units"):
-        """Scroll by rows ('units') or by a whole visible page ('pages'), like Tk's yview_scroll."""
-        step = self.row_px if what == "units" else self.clip_h
+        """Scroll by rows ('units') or by one visible page ('pages'), like Tk's yview_scroll."""
+        step = self.row_px if what == "units" else self._clip()
         self.offset = max(0, min(self.max_offset, self.offset + number * step))
-        self._place()
-
-    def _bind_drag(self, widget):
-        widget.bind("<ButtonPress-1>", self._press, add="+")
-        widget.bind("<B1-Motion>", self._motion, add="+")
-
-    def _press(self, event):
-        self.moved = False
-        self._start_y = self._last_y = event.y_root
-
-    def _motion(self, event):
-        if self._last_y is None:
-            return
-        if not self.moved and abs(self._start_y - event.y_root) < self.sc.px(8):
-            return
-        self.moved = True
-        self.offset = max(0, min(self.max_offset, self.offset + self._last_y - event.y_root))
-        self._last_y = event.y_root
         self._place()
 
     def _fit(self):
         width = self.viewport.winfo_width()
         if width > 4:
             self.viewport.itemconfigure(self.win, width=width)
-        self.max_offset = max(0, self.inner.winfo_reqheight() - self.clip_h)
+        self.max_offset = max(0, self.inner.winfo_reqheight() - self._clip())
         self.offset = min(self.offset, self.max_offset)
         self._place()
 
@@ -229,8 +255,9 @@ class ScrollList(tk.Frame):
         w, h = c.winfo_width(), c.winfo_height()
         if w <= 4 or h <= 4:
             return
-        content = self.max_offset + self.clip_h
-        thumb = max(12, int(h * self.clip_h / content))
+        clip = self._clip()
+        content = self.max_offset + clip
+        thumb = max(12, int(h * clip / content))
         y = int((h - thumb) * (self.offset / self.max_offset)) if self.max_offset else 0
         round_rect(c, 2, y, w - 2, y + thumb, 6, fill=self.t["accent"], outline="")
 
@@ -311,6 +338,8 @@ class Switch(tk.Canvas):
                          fill=t["ok"] if self.on else t["subtext"], font=self.sc.font(10, "bold"))
 
     def _release(self, event):
+        if drag_moved():
+            return
         if 0 <= event.x <= self.winfo_width() and 0 <= event.y <= self.winfo_height():
             self.on = not self.on
             self.draw()

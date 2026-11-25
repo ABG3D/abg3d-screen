@@ -10,10 +10,11 @@ from .backend import Backend
 from .mmu import is_active
 from .config import Settings
 from .theme import Scale, load_themes
-from .widgets import apply_cursor
+from .widgets import apply_cursor, drag_motion, drag_press
 from .console import ConsolePage
 from .honeycomb import HexFrame
 from .dialogs import TempModal
+from . import display
 from . import screens
 
 ICON_DIR = ASSETS_DIR / "icons"
@@ -62,6 +63,14 @@ class App:
                                simulate_mmu=args.simulate_mmu)
         self._mmu_seen = None
         self._mmu_block_until = 0.0
+        self.asleep = False
+        self._overlay = None
+        self._last_activity = time.time()
+        root.bind_all("<ButtonPress>", self._on_activity_press, add="+")
+        root.bind_all("<B1-Motion>", self._on_activity_motion, add="+")
+        root.bind_all("<Motion>", self._on_activity_motion, add="+")
+        root.bind_all("<ButtonPress-1>", drag_press, add="+")
+        root.bind_all("<B1-Motion>", drag_motion, add="+")
         root.protocol("WM_DELETE_WINDOW", self.quit)
 
         self._build_chrome()
@@ -289,6 +298,7 @@ class App:
         if self.current:
             self.pages[self.current].refresh(status, online, demo)
         self.clock_lbl.configure(text=time.strftime("%H:%M"))
+        self._check_idle()
         self.root.after(500, self._tick)
 
     def _update_header(self, status, online, demo):
@@ -314,6 +324,51 @@ class App:
         mcu_ok = det.get("mcu_status") == "online"
         self.mcu_lbl.configure(text="● MCU Online" if mcu_ok else "● MCU Offline",
                                fg=t["ok"] if mcu_ok else t["danger"])
+
+    # ---- screen power -----------------------------------------------------
+    def set_screen_timeout(self, seconds):
+        self.settings.set("screen_timeout", int(seconds))
+        self._last_activity = time.time()
+
+    def _on_activity_press(self, _event):
+        if not self.asleep:
+            self._last_activity = time.time()
+
+    def _on_activity_motion(self, _event):
+        if self.asleep:
+            self.wake()
+        else:
+            self._last_activity = time.time()
+
+    def _check_idle(self):
+        limit = int(self.settings.get("screen_timeout") or 0)
+        if limit and not self.asleep and time.time() - self._last_activity >= limit:
+            self.screen_off()
+
+    def screen_off(self):
+        if self.asleep:
+            return
+        self.asleep = True
+        display.screen_off()
+        self._overlay = tk.Frame(self.root, bg="#000000")
+        self._overlay.place(x=0, y=0, relwidth=1, relheight=1)
+        hint = tk.Label(self._overlay, text="Touch to wake", fg="#3a3f4a", bg="#000000",
+                        font=self.scale.font(12))
+        hint.place(relx=0.5, rely=0.5, anchor="center")
+        # The wake tap lands on this overlay and is absorbed, so no button underneath fires.
+        for widget in (self._overlay, hint):
+            widget.bind("<ButtonRelease-1>", lambda _e: self.wake())
+        self._overlay.lift()
+
+    def wake(self):
+        if not self.asleep:
+            return
+        self.asleep = False
+        display.screen_on()
+        if self._overlay is not None:
+            self._overlay.destroy()
+            self._overlay = None
+        self._last_activity = time.time()
 
     def quit(self):
         self.backend.stop()

@@ -120,8 +120,9 @@ cat > "$INSTALL_DIR/bin/session.sh" <<SESSION
 #!/bin/sh
 # Runs inside the minimal X session. Keeps the screen awake.
 xset s off 2>/dev/null
-xset -dpms 2>/dev/null
 xset s noblank 2>/dev/null
+xset +dpms 2>/dev/null
+xset dpms 0 0 0 2>/dev/null
 APP_DIR="$INSTALL_DIR"
 cd "\$APP_DIR" || exit 1
 exec "\$APP_DIR/venv/bin/python" -m abg3d_screen
@@ -133,7 +134,7 @@ info "Allowing restart and host control without a password (exact commands only)
 TMP_SUDO="$(mktemp)"
 cat > "$TMP_SUDO" <<SUDOERS
 # abg3d-screen: exact service commands only.
-${RUN_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart klipper, /usr/bin/systemctl restart moonraker, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
+${RUN_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl restart klipper, /usr/bin/systemctl restart moonraker, /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/bin/tee /sys/class/backlight/*/bl_power
 SUDOERS
 sudo install -m 0440 "$TMP_SUDO" "$SUDOERS_FILE"
 rm -f "$TMP_SUDO"

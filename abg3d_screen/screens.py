@@ -8,11 +8,21 @@ from .detect import MMU_NAMES
 from .monitor import MonitorView
 from .page import Page, fmt_time
 from .mmu import is_active, load_mmu_commands
-from .widgets import ScrollList, Switch, round_rect
+from .widgets import ScrollList, Switch, drag_moved, round_rect
 from . import network
 from .keyboard import OnScreenKeyboard
 
 JOG_FEED_XY, JOG_FEED_Z = 3000, 600
+SCREEN_TIMEOUTS = [(0, "Never"), (60, "1 min"), (300, "5 min"), (900, "15 min"), (1800, "30 min")]
+STEP_DELTAS = [-10, -1, 1, 10]
+HEATER_SPECS = {
+    "extruder": {"name": "Hotend", "max": 350, "presets": [("PLA", 210), ("PETG", 240), ("ABS", 250)],
+                 "gcode": "M104 S{v}"},
+    "heater_bed": {"name": "Bed", "max": 130, "presets": [("PLA", 60), ("PETG", 80), ("ABS", 100)],
+                   "gcode": "M140 S{v}"},
+}
+CHAMBER_SPEC = {"name": "Chamber", "max": 100, "presets": [("40", 40), ("50", 50), ("60", 60)],
+                "gcode": "SET_HEATER_TEMPERATURE HEATER={heater} TARGET={v}"}
 PRINT_ACTIVE = ("printing", "paused")
 
 
@@ -112,8 +122,8 @@ class ControlPage(Page):
     """Control sub-tabs: Movement, Fan Control and LED Control."""
 
     STEPS = [0.1, 1.0, 10.0]
-    TABS = [("movement", "Movement", "move"), ("fan", "Fan Control", "fan"),
-            ("led", "LED Control", "led")]
+    TABS = [("temperature", "Temperature", "temps"), ("movement", "Movement", "move"),
+            ("fan", "Fan Control", "fan"), ("led", "LED Control", "led")]
     FAN_STEPS = [("Off", 0), ("25%", 64), ("50%", 128), ("75%", 191), ("100%", 255)]
     BEDFAN_STEPS = [("Off", "0.0"), ("20%", "0.2"), ("50%", "0.5"), ("80%", "0.8"), ("100%", "1.0")]
     LED_COLOURS = [("Off", 0, 0, 0), ("White", 1, 1, 1), ("Red", 1, 0, 0),
@@ -128,6 +138,12 @@ class ControlPage(Page):
         self._extras_key = None
         self._leds_key = None
         self.tab = None
+        self._cards = {}
+        self._targets = {}
+        self._active_key = None
+        self._chamber_obj = ""
+        self._off_row = None
+        self._temp_box = None
 
         bar = tk.Frame(self, bg=self.t["bg"])
         bar.pack(side="top", fill="x", padx=pad, pady=(pad, 0))
@@ -138,9 +154,9 @@ class ControlPage(Page):
             btn.pack(side="left", fill="x", expand=True, padx=(0 if i == 0 else self.px(6), 0))
             self.tab_btns[key] = btn
 
-        self.panes = {"movement": self._build_movement(), "fan": self._build_fan(),
-                      "led": self._build_led()}
-        self._set_tab("movement")
+        self.panes = {"temperature": self._build_temperature(), "movement": self._build_movement(),
+                      "fan": self._build_fan(), "led": self._build_led()}
+        self._set_tab("temperature")
 
     def _set_tab(self, key):
         if key == self.tab:
@@ -155,22 +171,21 @@ class ControlPage(Page):
     # ---- Movement -------------------------------------------------------
     def _build_movement(self):
         pad = self.px(12)
-        pane = self.panel(self)
-        homing = tk.Frame(pane, bg=self.t["panel"])
+        pane = ScrollList(self, self.app, visible_rows=None, row_h=36, bg=self.t["panel"])
+        box = pane.inner
+        homing = tk.Frame(box, bg=self.t["panel"])
         homing.pack(fill="x", padx=pad, pady=(pad, 0))
         h = self.px(66)
-        self.button(homing, "Disable Motors", lambda: self.gcode("M18", "Motors released"),
-                    height=h, font=12, icon=self.app.icon("motor_off", 26)).pack(
-            side="left", fill="x", expand=True, padx=3)
+        self.button(homing, "", lambda: self.gcode("M18", "Motors released"), height=h,
+                    icon=self.app.icon("motor_off", 30)).pack(side="left", fill="x", expand=True, padx=3)
         for name, cmd, icon in (("Home All", "G28", "home_all"), ("X", "G28 X", "home_x"),
                                 ("Y", "G28 Y", "home_y"), ("Z", "G28 Z", "home_z"),
                                 ("Home XY", "G28 X Y", "home_xy")):
-            self.button(homing, name, lambda c=cmd, n=name: self.gcode(c, f"Homing {n}"),
-                        height=h, font=12, icon=self.app.icon(icon, 26)).pack(
-                side="left", fill="x", expand=True, padx=3)
+            self.button(homing, "", lambda c=cmd, n=name: self.gcode(c, f"Homing {n}"), height=h,
+                        icon=self.app.icon(icon, 30)).pack(side="left", fill="x", expand=True, padx=3)
 
-        grid = tk.Frame(pane, bg=self.t["panel"])
-        grid.pack(expand=True, pady=self.px(6))
+        grid = tk.Frame(box, bg=self.t["panel"])
+        grid.pack(pady=self.px(6))
 
         def jog(text, axis, sign, row, col):
             btn = self.button(grid, text, lambda: self._jog(axis, sign), height=56)
@@ -188,7 +203,7 @@ class ControlPage(Page):
         for row in range(3):
             grid.rowconfigure(row, minsize=self.px(56))
 
-        steps = tk.Frame(pane, bg=self.t["panel"])
+        steps = tk.Frame(box, bg=self.t["panel"])
         steps.pack(fill="x", padx=pad, pady=(0, self.px(6)))
         for val in self.STEPS:
             btn = self.button(steps, f"{val:g} mm", lambda v=val: self._set_step(v),
@@ -196,10 +211,9 @@ class ControlPage(Page):
             btn.pack(side="left", fill="x", expand=True, padx=3)
             self.step_buttons[val] = btn
 
-        # Z-Tilt and QGL appear here only when the printer config defines them
-        self.extras = tk.Frame(pane, bg=self.t["panel"])
+        self.extras = tk.Frame(box, bg=self.t["panel"])
         self.extras.pack(fill="x", padx=pad, pady=(0, self.px(4)))
-        self.label(pane, "Jogging is locked while a print is running.", 10,
+        self.label(box, "Jogging is locked while a print is running.", 10,
                    color=self.t["subtext"], bg=self.t["panel"]).pack(anchor="w", padx=pad,
                                                                     pady=(0, pad))
         return pane
@@ -294,11 +308,155 @@ class ControlPage(Page):
                             height=44, font=11).pack(side="left", fill="x", expand=True, padx=3)
 
     # ---- lifecycle --------------------------------------------------------
+    # ---- Temperature --------------------------------------------------------
+    def _build_temperature(self):
+        pad = self.px(12)
+        pane = ScrollList(self, self.app, visible_rows=None, row_h=36, bg=self.t["panel"])
+        self._temp_box = pane.inner
+        self.label(self._temp_box, "Target temperatures", 14, "bold", bg=self.t["panel"]).pack(
+            anchor="w", padx=pad, pady=(pad, self.px(4)))
+        for key, spec in HEATER_SPECS.items():
+            self._add_card(key, spec, key, None)
+        self._off_row = tk.Frame(self._temp_box, bg=self.t["panel"])
+        self._off_row.pack(fill="x", padx=pad, pady=(self.px(4), pad))
+        self.button(self._off_row, "All heaters off", self._all_off, "secondary", height=44,
+                    font=12, icon=self.app.icon("temps", 24)).pack(fill="x")
+        self.temp_kb = OnScreenKeyboard(self._temp_box, self.app, on_key=self._kb_key,
+                                        on_delete=self._kb_delete, on_move=self._kb_move,
+                                        on_send=self._kb_apply, on_hide=self._kb_hide, numeric=True)
+        return pane
+
+    def _add_card(self, key, spec, status_key, heater, before=None):
+        pad = self.px(10)
+        panel_alt = self.t["panel_alt"]
+        card = tk.Frame(self._temp_box, bg=panel_alt)
+        top = tk.Frame(card, bg=panel_alt)
+        top.pack(fill="x", padx=pad, pady=(pad, 0))
+        self.label(top, spec["name"], 12, "bold", bg=panel_alt).pack(side="left")
+        live = self.label(top, "--", 12, color=self.t["subtext"], bg=panel_alt)
+        live.pack(side="right")
+        presets = tk.Frame(card, bg=panel_alt)
+        presets.pack(fill="x", padx=pad, pady=(self.px(8), 0))
+        self.button(presets, "Off", lambda: self._send(key, 0), "secondary", height=40,
+                    font=11).pack(side="left", fill="x", expand=True, padx=2)
+        for name, value in spec["presets"]:
+            self.button(presets, name, lambda v=value: self._send(key, v), "secondary", height=40,
+                        font=11).pack(side="left", fill="x", expand=True, padx=2)
+        steps = tk.Frame(card, bg=panel_alt)
+        steps.pack(fill="x", padx=pad, pady=(self.px(6), 0))
+        for delta in STEP_DELTAS:
+            self.button(steps, f"{delta:+d}", lambda d=delta: self._step(key, d), "secondary",
+                        height=40, font=11).pack(side="left", fill="x", expand=True, padx=2)
+        entry_row = tk.Frame(card, bg=panel_alt)
+        entry_row.pack(fill="x", padx=pad, pady=(self.px(6), pad))
+        entry = tk.Entry(entry_row, font=("DejaVu Sans", self.font(16)[1], "bold"), width=6,
+                         justify="center", bg=self.t["panel"], fg=self.t["text"],
+                         insertbackground=self.t["text"], relief="flat", bd=6)
+        entry.pack(side="left", fill="x", expand=True)
+        entry.bind("<ButtonRelease-1>", lambda _e, k=key: self._focus(k))
+        self.button(entry_row, "Set", lambda: self._apply(key), "primary", height=44,
+                    font=11).pack(side="left", padx=(self.px(6), 0))
+        if before is not None:
+            card.pack(fill="x", pady=(0, self.px(10)), before=before)
+        else:
+            card.pack(fill="x", pady=(0, self.px(10)))
+        self._cards[key] = {"frame": card, "live": live, "entry": entry, "spec": spec,
+                            "status_key": status_key, "heater": heater}
+
+    def _send(self, key, value):
+        card = self._cards.get(key)
+        if not card:
+            return
+        spec = card["spec"]
+        v = max(0, min(spec["max"], int(round(float(value)))))
+        script = spec["gcode"].format(v=v, heater=card["heater"] or "")
+        self.gcode(script, f"{spec['name']} target {v} \u00b0C")
+
+    def _step(self, key, delta):
+        self._send(key, self._targets.get(key, 0) + delta)
+
+    def _apply(self, key):
+        card = self._cards.get(key)
+        if not card:
+            return
+        try:
+            self._send(key, int(card["entry"].get() or 0))
+        except ValueError:
+            pass
+
+    def _all_off(self):
+        lines = [c["spec"]["gcode"].format(v=0, heater=c["heater"] or "")
+                 for c in self._cards.values()]
+        self.gcode("\n".join(lines), "Heaters off")
+
+    def _focus(self, key):
+        if drag_moved():
+            return
+        self._active_key = key
+        if not self.temp_kb.winfo_ismapped():
+            self.temp_kb.pack(fill="x", padx=self.px(12), pady=(self.px(8), self.px(12)))
+
+    def _kb_entry(self):
+        card = self._cards.get(self._active_key) if self._active_key else None
+        return card["entry"] if card else None
+
+    def _kb_key(self, ch):
+        entry = self._kb_entry()
+        if entry is not None and ch.isdigit():
+            entry.insert(tk.INSERT, ch)
+
+    def _kb_delete(self):
+        entry = self._kb_entry()
+        if entry is not None:
+            pos = entry.index(tk.INSERT)
+            if pos > 0:
+                entry.delete(pos - 1)
+
+    def _kb_move(self, delta):
+        entry = self._kb_entry()
+        if entry is not None:
+            pos = entry.index(tk.INSERT)
+            entry.icursor(max(0, min(len(entry.get()), pos + delta)))
+
+    def _kb_apply(self):
+        key = self._active_key
+        self._kb_hide()
+        if key:
+            self._apply(key)
+
+    def _kb_hide(self):
+        self.temp_kb.pack_forget()
+        self._active_key = None
+
+    def _refresh_temps(self, st, det):
+        chamber = det.get("chamber_heater") or ""
+        if chamber != self._chamber_obj:
+            old = self._cards.pop("chamber", None)
+            if old:
+                old["frame"].destroy()
+            self._targets.pop("chamber", None)
+            self._chamber_obj = chamber
+            if chamber:
+                self._add_card("chamber", CHAMBER_SPEC, chamber, chamber.split(" ", 1)[1],
+                               before=self._off_row)
+        for key, card in self._cards.items():
+            data = st.get(card["status_key"]) or {}
+            cur, tgt = data.get("temperature"), data.get("target")
+            if tgt is not None:
+                self._targets[key] = float(tgt)
+            card["live"].configure(
+                text="--" if cur is None else f"{float(cur):.0f}\u00b0 / {float(tgt or 0):.0f}\u00b0")
+            if key != self._active_key and tgt is not None:
+                card["entry"].delete(0, "end")
+                card["entry"].insert(0, f"{float(tgt):.0f}")
+
+    # ---- lifecycle --------------------------------------------------------
     def refresh(self, st, online, demo):
         pad = self.px(12)
         state = (st.get("print_stats") or {}).get("state") or "standby"
         locked = state in PRINT_ACTIVE
         det = self.app.backend.detection
+        self._refresh_temps(st, det)
         key = (bool(det.get("ztilt")), bool(det.get("qgl")))
         if key != self._extras_key:
             self._build_extras(key)
@@ -493,7 +651,19 @@ class SettingsPage(Page):
         self.theme_btn.pack(fill="x", padx=pad)
         self.pointer_sw = Switch(pane, "Mouse pointer", self.app.toggle_pointer, self.app,
                                  on=bool(self.app.settings.get("mouse_pointer")), height=44)
-        self.pointer_sw.pack(fill="x", padx=pad, pady=(self.px(14), pad))
+        self.pointer_sw.pack(fill="x", padx=pad, pady=(self.px(14), self.px(8)))
+        self.label(pane, "Display", 12, "bold", bg=self.t["panel"]).pack(
+            anchor="w", padx=pad, pady=(self.px(6), self.px(4)))
+        trow = tk.Frame(pane, bg=self.t["panel"])
+        trow.pack(fill="x", padx=pad)
+        self.timeout_btns = {}
+        for seconds, text in SCREEN_TIMEOUTS:
+            btn = self.button(trow, text, lambda s=seconds: self.app.set_screen_timeout(s),
+                              "secondary", height=40, font=10)
+            btn.pack(side="left", fill="x", expand=True, padx=2)
+            self.timeout_btns[seconds] = btn
+        self.button(pane, "Screen Off", self.app.screen_off, "secondary", height=44).pack(
+            fill="x", padx=pad, pady=(self.px(8), pad))
         return pane
 
     def _toggle_dropdown(self):
@@ -729,6 +899,9 @@ class SettingsPage(Page):
         det = self.app.backend.detection
         self.theme_btn.set_text(f"{self.app.theme.name}  \u25bc")
         self.pointer_sw.set_on(bool(s.get("mouse_pointer")))
+        current = int(s.get("screen_timeout") or 0)
+        for seconds, btn in self.timeout_btns.items():
+            btn.set_style("primary" if seconds == current else "secondary")
         self.mmu_sw.set_on(bool(s.get("mmu_enabled")))
         self.warning.configure(text=self.app.mmu_block_message())
         self.mmu_info.configure(text=f"Detected: {det.get('mmu_name', 'None detected')}")
