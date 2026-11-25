@@ -1,4 +1,4 @@
-# ABG3D-Screen
+# abg3d-screen
 
 A touchscreen interface for Klipper and Moonraker, built for a Raspberry Pi 4B (1 GB) with a touchscreen. It runs as a systemd service that starts on every boot and replaces KlipperScreen or HelixScreen.
 
@@ -29,17 +29,25 @@ Python dependencies are listed in `requirements.txt`. The app needs none at runt
 
 ```
 abg3d-screen/
-├── abg3d_screen/        application package
-├── tools/make_assets.py developer script that regenerates artwork
-├── install.sh           installer
-├── uninstall.sh         removes the service and restores the previous touchscreen
-├── requirements.txt     Python dependencies
-├── run-dev.sh           run in a window for development
-├── version
-└── readme.md
+├── .github/
+│   └── workflows/
+│       └── lint.yml         CI: lowercase paths, pyflakes, shell syntax
+├── abg3d_screen/            application package
+│   ├── assets/              logo, icons, printer images, JSON data
+│   └── *.py                 app, backend, screens, monitor, console, ...
+├── tools/
+│   └── make_assets.py       developer script that regenerates artwork
+├── .gitignore
+├── install.sh               installer
+├── uninstall.sh             removes the service and restores the previous touchscreen
+├── LICENSE                  GNU General Public License v3.0
+├── README.md
+├── requirements.txt         Python dependencies (none needed at runtime)
+├── run-dev.sh               run in a window for development
+└── version                  app version
 ```
 
-All paths are lowercase. install.sh refuses to run if any path contains an uppercase letter, and a CI workflow checks this on every push.
+All paths are lowercase except `README.md` and `LICENSE`. install.sh refuses to run if any other path contains an uppercase letter, and a CI workflow checks this on every push.
 
 ## Install
 
@@ -124,4 +132,4 @@ Install `python3-tk` first if it is missing.
 
 ## License
 
-Choose a license before publishing.
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See [LICENSE](LICENSE) for the full text.

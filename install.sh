@@ -29,7 +29,7 @@ command -v sudo >/dev/null || die "sudo is required."
 [[ -d "$REPO_DIR/abg3d_screen" ]] || die "abg3d_screen/ not found next to install.sh."
 
 info "Checking that all repository paths are lowercase"
-bad="$(cd "$REPO_DIR" && find . -path ./.git -prune -o -print | sed 's|^\./||' | grep -E '[A-Z]' || true)"
+bad="$(cd "$REPO_DIR" && find . -path ./.git -prune -o -print | sed 's|^\./||' | grep -E '[A-Z]' | grep -v -x -E '(README\.md|LICENSE)' || true)"
 if [[ -n "$bad" ]]; then
   printf '%s\n' "$bad" >&2
   die "Uppercase paths found. Rename them to lowercase before installing."
