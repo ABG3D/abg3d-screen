@@ -277,6 +277,41 @@ def icon_led(d):
         d.line(sc(*seg), fill=ACCENT, width=5 * SS)
 
 
+def icon_palette(d):
+    d.ellipse(sc(8, 10, 88, 86), outline=WHITE, width=STROKE * SS)
+    for x, y, col in ((30, 36, ACCENT), (50, 26, WHITE), (66, 44, ACCENT), (34, 62, WHITE)):
+        d.ellipse(sc(x - 6, y - 6, x + 6, y + 6), fill=col)
+
+
+def icon_hotend(d):
+    d.rounded_rectangle(sc(30, 8, 66, 34), radius=4 * SS, outline=WHITE, width=STROKE * SS)
+    d.polygon(sc(36, 34, 60, 34, 48, 60), outline=WHITE, width=STROKE * SS)
+    d.ellipse(sc(42, 66, 54, 78), fill=ACCENT)
+
+
+def icon_script(d):
+    d.line(sc(34, 26, 16, 48, 34, 70), fill=WHITE, width=STROKE * SS, joint="curve")
+    d.line(sc(62, 26, 80, 48, 62, 70), fill=WHITE, width=STROKE * SS, joint="curve")
+    d.line(sc(58, 20, 38, 76), fill=ACCENT, width=STROKE * SS)
+
+
+def icon_wifi(d):
+    for radius in (24, 40, 56):
+        d.arc(sc(48 - radius, 70 - radius, 48 + radius, 70 + radius), start=225, end=315,
+              fill=WHITE, width=STROKE * SS)
+    d.ellipse(sc(42, 64, 54, 76), fill=ACCENT)
+
+
+def icon_gear(d):
+    import math
+    for k in range(8):
+        a = math.radians(45 * k)
+        d.line(sc(48 + 28 * math.cos(a), 48 + 28 * math.sin(a),
+                  48 + 40 * math.cos(a), 48 + 40 * math.sin(a)), fill=WHITE, width=STROKE * SS)
+    d.ellipse(sc(20, 20, 76, 76), outline=WHITE, width=STROKE * SS)
+    d.ellipse(sc(40, 40, 56, 56), fill=ACCENT)
+
+
 if __name__ == "__main__":
     (ASSETS / "icons").mkdir(parents=True, exist_ok=True)
     (ASSETS / "printers").mkdir(parents=True, exist_ok=True)
@@ -288,7 +323,9 @@ if __name__ == "__main__":
                      ("console", icon_console), ("pause", icon_pause), ("play", icon_play),
                      ("cancel", icon_cancel), ("stop", icon_stop), ("motor_off", icon_motor_off),
                      ("home_xy", _house_xy), ("trash", icon_trash), ("enter", icon_enter),
-                     ("quit", icon_quit), ("move", icon_move), ("fan", icon_fan), ("led", icon_led)):
+                     ("quit", icon_quit), ("move", icon_move), ("fan", icon_fan), ("led", icon_led),
+                     ("palette", icon_palette), ("hotend", icon_hotend), ("script", icon_script),
+                     ("wifi", icon_wifi), ("gear", icon_gear)):
         _icon(name, fn)
     for key, accent in (("voron", (242, 156, 56, 255)), ("ratrig", (142, 209, 106, 255)),
                         ("vzbot", (61, 181, 232, 255)), ("rh3dng", (217, 103, 93, 255))):

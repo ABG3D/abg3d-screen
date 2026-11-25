@@ -129,6 +129,76 @@ class RoundButton(tk.Canvas):
             pass  # widget was destroyed while the confirm timer was pending
 
 
+class ScrollList(tk.Frame):
+    """Touch-scrollable list: clipped viewport, thumb track and up/down buttons."""
+
+    def __init__(self, master, app, visible_rows=3, row_h=36, bg=None):
+        self.app = app
+        self.t = app.theme
+        self.sc = app.scale
+        bg = bg or self.t["panel_alt"]
+        super().__init__(master, bg=bg)
+        self.row_base = row_h
+        self.row_px = self.sc.px(row_h) + 2 * self.sc.px(3)
+        self.clip_h = self.row_px * visible_rows
+        self.offset = 0
+        self.max_offset = 0
+        column = tk.Frame(self, bg=bg, width=self.sc.px(44))
+        column.pack(side="right", fill="y")
+        column.pack_propagate(False)
+        self.viewport = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0, height=self.clip_h)
+        self.viewport.pack(side="left", fill="both", expand=True)
+        self.inner = tk.Frame(self.viewport, bg=bg)
+        self.win = self.viewport.create_window(0, 0, window=self.inner, anchor="nw")
+        self.viewport.bind("<Configure>", lambda _e: self._fit())
+        self.inner.bind("<Configure>", lambda _e: self._fit())
+        RoundButton(column, "\u25b2", lambda: self.scroll(-1), app, "secondary",
+                    height=36, font=10).pack(fill="x", padx=2, pady=(2, 0))
+        self.track = tk.Canvas(column, bg=bg, highlightthickness=0, bd=0)
+        self.track.pack(fill="both", expand=True, padx=12, pady=4)
+        self.track.bind("<Configure>", lambda _e: self._thumb())
+        RoundButton(column, "\u25bc", lambda: self.scroll(1), app, "secondary",
+                    height=36, font=10).pack(fill="x", padx=2, pady=(0, 2))
+
+    def clear(self):
+        for child in self.inner.winfo_children():
+            child.destroy()
+        self.offset = 0
+        self._fit()
+
+    def add(self, text, command, style="secondary"):
+        btn = RoundButton(self.inner, text, command, self.app, style, height=self.row_base, font=10)
+        btn.pack(fill="x", padx=self.sc.px(4), pady=self.sc.px(3))
+        return btn
+
+    def scroll(self, direction):
+        self.offset = max(0, min(self.max_offset, self.offset + direction * self.row_px))
+        self._place()
+
+    def _fit(self):
+        width = self.viewport.winfo_width()
+        if width > 4:
+            self.viewport.itemconfigure(self.win, width=width)
+        self.max_offset = max(0, self.inner.winfo_reqheight() - self.clip_h)
+        self.offset = min(self.offset, self.max_offset)
+        self._place()
+
+    def _place(self):
+        self.viewport.coords(self.win, 0, -self.offset)
+        self._thumb()
+
+    def _thumb(self):
+        c = self.track
+        c.delete("all")
+        w, h = c.winfo_width(), c.winfo_height()
+        if w <= 4 or h <= 4:
+            return
+        content = self.max_offset + self.clip_h
+        thumb = max(12, int(h * self.clip_h / content))
+        y = int((h - thumb) * (self.offset / self.max_offset)) if self.max_offset else 0
+        round_rect(c, 2, y, w - 2, y + thumb, 6, fill=self.t["accent"], outline="")
+
+
 class Meter(tk.Canvas):
     """Thin rounded progress bar."""
 

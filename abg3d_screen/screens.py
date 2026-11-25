@@ -6,7 +6,9 @@ from .detect import MMU_NAMES
 from .monitor import MonitorView
 from .page import Page
 from .mmu import is_active, load_mmu_commands
-from .widgets import RoundButton, Switch, round_rect
+from .widgets import ScrollList, Switch
+from . import network
+from .keyboard import OnScreenKeyboard
 from .wizard import load_printers
 
 JOG_FEED_XY, JOG_FEED_Z = 3000, 600
@@ -383,117 +385,74 @@ class SystemPage(Page):
 
 
 class SettingsPage(Page):
-    """Theme dropdown and toggles on the left; the Quit button on the right when allowed."""
+    """Settings in icon-only sub-tabs: Appearance, MMU, Macros, Network and System."""
+
+    TABS = [("appearance", "palette"), ("mmu", "hotend"), ("macros", "script"),
+            ("network", "wifi"), ("system", "gear")]
 
     def build(self):
         pad = self.px(12)
         self.printers = load_printers()
-        self._exit_shown = False
+        self.sub = None
         self.dropdown = None
-        self._scroll = None
-        right = tk.Frame(self, bg=self.t["bg"], width=self.px(170))
-        right.pack(side="right", fill="y", padx=(0, pad), pady=pad)
-        right.pack_propagate(False)
-        left = self.panel(self)
-        left.pack(side="left", fill="both", expand=True, padx=pad, pady=pad)
+        self._macro_key = None
+        self._pin_key = None
+        self._quit_shown = False
+        self._pending = None
 
-        self.label(left, "Themes", 12, "bold", bg=self.t["panel"]).pack(
+        bar = tk.Frame(self, bg=self.t["bg"])
+        bar.pack(side="top", fill="x", padx=pad, pady=(pad, 0))
+        self.tab_btns = {}
+        for i, (key, icon) in enumerate(self.TABS):
+            btn = self.button(bar, "", lambda k=key: self._set_sub(k), "secondary", height=56,
+                              icon=self.app.icon(icon, 28))
+            btn.pack(side="left", fill="x", expand=True, padx=(0 if i == 0 else self.px(6), 0))
+            self.tab_btns[key] = btn
+
+        self.panes = {"appearance": self._appearance(), "mmu": self._mmu(),
+                      "macros": self._macros(), "network": self._network(),
+                      "system": self._system()}
+        self._set_sub("appearance")
+
+    def _set_sub(self, key):
+        if key == self.sub:
+            return
+        self.sub = key
+        for pane in self.panes.values():
+            pane.pack_forget()
+        self.panes[key].pack(fill="both", expand=True, padx=self.px(12), pady=self.px(12))
+        for name, btn in self.tab_btns.items():
+            btn.set_style("primary" if name == key else "secondary")
+        if key == "network":
+            self._refresh_network()
+
+    # ---- Appearance: themes and mouse pointer -----------------------------
+    def _appearance(self):
+        pane = self.panel(self)
+        pad = self.px(12)
+        self.label(pane, "Themes", 12, "bold", bg=self.t["panel"]).pack(
             anchor="w", padx=pad, pady=(pad, self.px(4)))
-        self.theme_btn = self.button(left, "", self._toggle_dropdown, "secondary", height=40,
+        self.theme_btn = self.button(pane, "", self._toggle_dropdown, "secondary", height=44,
                                      font=11)
         self.theme_btn.pack(fill="x", padx=pad)
-
-        self.pointer_sw = Switch(left, "Mouse pointer", self.app.toggle_pointer, self.app,
-                                 on=bool(self.app.settings.get("mouse_pointer")), height=40)
-        self.pointer_sw.pack(fill="x", padx=pad, pady=(self.px(12), 0))
-        self.mmu_sw = Switch(left, "Enable MMU", self.app.toggle_mmu, self.app,
-                             on=bool(self.app.settings.get("mmu_enabled")), height=40)
-        self.mmu_sw.pack(fill="x", padx=pad, pady=(self.px(8), 0))
-        self.quit_sw = Switch(left, "Allow to quit", self.app.toggle_quit, self.app,
-                              on=bool(self.app.settings.get("allow_quit")), height=40)
-        self.quit_sw.pack(fill="x", padx=pad, pady=(self.px(8), 0))
-        self.warning = tk.Label(left, text="", fg=self.t["danger"], bg=self.t["panel"],
-                                font=self.font(10, "bold"), wraplength=self.px(430), justify="left")
-        self.warning.pack(anchor="w", padx=pad, pady=(self.px(8), 0))
-        self.info = self.label(left, "", 9, color=self.t["subtext"], bg=self.t["panel"],
-                               wraplength=self.px(430), justify="left")
-        self.info.pack(anchor="w", padx=pad, pady=(self.px(6), 0))
-
-        self.exit_btn = self.button(right, "Quit", self.app.quit, "ghost", confirm=True,
-                                    height=84, font=12, icon=self.app.icon("quit", 30))
-
-    # ---- theme dropdown with scrollbar ------------------------------------
-    ITEM_H = 34    # base px per theme button
-    PAD = 3        # base px gap between items
-    VISIBLE = 3    # items visible at once
+        self.pointer_sw = Switch(pane, "Mouse pointer", self.app.toggle_pointer, self.app,
+                                 on=bool(self.app.settings.get("mouse_pointer")), height=44)
+        self.pointer_sw.pack(fill="x", padx=pad, pady=(self.px(14), pad))
+        return pane
 
     def _toggle_dropdown(self):
         if self.dropdown is not None:
             self._close_dropdown()
             return
         btn = self.theme_btn
-        row = self.px(self.ITEM_H) + 2 * self.px(self.PAD)
-        clip_h = row * self.VISIBLE
-        themes = list(self.app.themes.items())
-        self.dropdown = tk.Frame(btn.master, bg=self.t["panel_alt"])
+        self.dropdown = ScrollList(btn.master, self.app, visible_rows=3, row_h=34,
+                                   bg=self.t["panel_alt"])
         self.dropdown.place(x=btn.winfo_x(), y=btn.winfo_y() + btn.winfo_height() + self.px(4),
                             width=btn.winfo_width())
         self.dropdown.lift()
-
-        column = tk.Frame(self.dropdown, bg=self.t["panel_alt"], width=self.px(44))
-        column.pack(side="right", fill="y")
-        column.pack_propagate(False)
-        clip = tk.Frame(self.dropdown, bg=self.t["panel_alt"], height=clip_h)
-        clip.pack(side="left", fill="both", expand=True)
-        clip.pack_propagate(False)
-
-        inner = tk.Frame(clip, bg=self.t["panel_alt"])
-        inner.place(x=0, y=0, relwidth=1)
-        for key, theme in themes:
+        for key, theme in self.app.themes.items():
             style = "primary" if key == self.app.theme.key else "secondary"
-            RoundButton(inner, theme.name, lambda k=key: self._choose(k), self.app, style,
-                        height=self.ITEM_H, font=10).pack(fill="x", padx=self.px(4),
-                                                          pady=self.px(self.PAD))
-        total = len(themes) * row
-        self._scroll = {"inner": inner, "offset": 0, "step": row, "clip_h": clip_h,
-                        "max": max(0, total - clip_h), "track": None}
-
-        RoundButton(column, "▲", lambda: self._scroll_by(-1), self.app, "secondary",
-                    height=self.ITEM_H, font=10).pack(fill="x", padx=2, pady=(2, 0))
-        track = tk.Canvas(column, bg=self.t["panel_alt"], highlightthickness=0, bd=0)
-        track.pack(fill="both", expand=True, padx=12, pady=4)
-        RoundButton(column, "▼", lambda: self._scroll_by(1), self.app, "secondary",
-                    height=self.ITEM_H, font=10).pack(fill="x", padx=2, pady=(0, 2))
-        self._scroll["track"] = track
-        track.bind("<Configure>", lambda _e: self._draw_thumb())
-        self._place_inner()
-
-    def _scroll_by(self, direction):
-        if self._scroll is None:
-            return
-        sc = self._scroll
-        sc["offset"] = max(0, min(sc["max"], sc["offset"] + direction * sc["step"]))
-        self._place_inner()
-        self._draw_thumb()
-
-    def _place_inner(self):
-        sc = self._scroll
-        if sc is not None:
-            sc["inner"].place(x=0, y=-sc["offset"], relwidth=1)
-
-    def _draw_thumb(self):
-        sc = self._scroll
-        if sc is None or sc["track"] is None:
-            return
-        c = sc["track"]
-        c.delete("all")
-        w, h = c.winfo_width(), c.winfo_height()
-        if h <= 4 or w <= 4:
-            return
-        total = sc["max"] + sc["clip_h"]
-        thumb_h = max(12, int(h * sc["clip_h"] / total))
-        y = int((h - thumb_h) * (sc["offset"] / sc["max"])) if sc["max"] else 0
-        round_rect(c, 2, y, w - 2, y + thumb_h, 6, fill=self.t["accent"], outline="")
+            self.dropdown.add(theme.name, lambda k=key: self._choose(k), style)
 
     def _choose(self, key):
         self._close_dropdown()
@@ -503,23 +462,234 @@ class SettingsPage(Page):
         if self.dropdown is not None:
             self.dropdown.destroy()
             self.dropdown = None
-        self._scroll = None
 
-    # ---- refresh --------------------------------------------------------
+    # ---- MMU ----------------------------------------------------------------
+    def _mmu(self):
+        pane = self.panel(self)
+        pad = self.px(12)
+        self.mmu_sw = Switch(pane, "Enable MMU", self.app.toggle_mmu, self.app,
+                             on=bool(self.app.settings.get("mmu_enabled")), height=44)
+        self.mmu_sw.pack(fill="x", padx=pad, pady=(pad, 0))
+        self.mmu_info = self.label(pane, "", 10, color=self.t["subtext"], bg=self.t["panel"],
+                                   wraplength=self.px(520), justify="left")
+        self.mmu_info.pack(anchor="w", padx=pad, pady=(self.px(10), 0))
+        self.warning = tk.Label(pane, text="", fg=self.t["danger"], bg=self.t["panel"],
+                                font=self.font(11, "bold"), wraplength=self.px(520), justify="left")
+        self.warning.pack(anchor="w", padx=pad, pady=(self.px(8), 0))
+        return pane
+
+    # ---- Macros -------------------------------------------------------------
+    def _macros(self):
+        pane = self.panel(self)
+        pad = self.px(12)
+        self.label(pane, "Klipper macros", 12, "bold", bg=self.t["panel"]).pack(
+            anchor="w", padx=pad, pady=(pad, 0))
+        self.label(pane, "Tap a macro to cycle: normal, favourite (star), hidden.", 10,
+                   color=self.t["subtext"], bg=self.t["panel"]).pack(anchor="w", padx=pad)
+        self.macro_list = ScrollList(pane, self.app, visible_rows=4, row_h=34,
+                                     bg=self.t["panel"])
+        self.macro_list.pack(fill="both", expand=True, padx=pad, pady=(self.px(6), pad))
+        return pane
+
+    def _refresh_macros(self, macros):
+        s = self.app.settings
+        fav = sorted(s.get("macro_favs") or [])
+        hid = sorted(s.get("macro_hidden") or [])
+        key = (tuple(macros), tuple(fav), tuple(hid))
+        if key == self._macro_key:
+            return
+        self._macro_key = key
+        self.macro_list.clear()
+        if not macros:
+            self.macro_list.add("No macros found. Define [gcode_macro NAME] in printer.cfg.",
+                                None, "ghost")
+            return
+        for name in macros:
+            if name in hid:
+                text, style = f"hidden: {name}", "ghost"
+            elif name in fav:
+                text, style = f"\u2605 {name}", "primary"
+            else:
+                text, style = name, "secondary"
+            self.macro_list.add(text, lambda n=name: self._cycle_macro(n), style)
+
+    def _cycle_macro(self, name):
+        fav = set(self.app.settings.get("macro_favs") or [])
+        hid = set(self.app.settings.get("macro_hidden") or [])
+        if name in hid:
+            hid.discard(name)
+        elif name in fav:
+            fav.discard(name)
+            hid.add(name)
+        else:
+            fav.add(name)
+        self.app.settings.update(macro_favs=sorted(fav), macro_hidden=sorted(hid))
+
+    # ---- Network ------------------------------------------------------------
+    def _network(self):
+        pane = self.panel(self)
+        pad = self.px(12)
+        left = tk.Frame(pane, bg=self.t["panel"], width=self.px(220))
+        left.pack(side="left", fill="y", padx=pad, pady=pad)
+        left.pack_propagate(False)
+        self.net_info = self.label(left, "Loading...", 10, color=self.t["text"],
+                                   bg=self.t["panel"], wraplength=self.px(200), justify="left")
+        self.net_info.pack(anchor="w")
+        self.button(left, "Scan", self._refresh_network, "primary", height=44, font=11).pack(
+            side="bottom", fill="x")
+
+        right = tk.Frame(pane, bg=self.t["panel"])
+        right.pack(side="left", fill="both", expand=True, padx=(0, pad), pady=pad)
+        self.net_msg = self.label(right, "", 10, color=self.t["subtext"], bg=self.t["panel"],
+                                  wraplength=self.px(360), justify="left")
+        self.net_msg.pack(anchor="w")
+        self.net_list = ScrollList(right, self.app, visible_rows=3, row_h=36, bg=self.t["panel"])
+        self.net_list.pack(fill="x", pady=(self.px(4), 0))
+
+        self.pw_box = tk.Frame(right, bg=self.t["panel"])
+        self.pw_label = self.label(self.pw_box, "", 11, "bold", bg=self.t["panel"])
+        self.pw_label.pack(anchor="w")
+        self.pw_entry = tk.Entry(self.pw_box, font=("DejaVu Sans", self.font(14)[1]),
+                                 bg=self.t["panel_alt"], fg=self.t["text"],
+                                 insertbackground=self.t["text"], relief="flat", bd=6, show="\u2022")
+        self.pw_entry.pack(fill="x", pady=(self.px(4), self.px(4)))
+        self.pw_entry.bind("<ButtonRelease-1>", lambda _e: self._show_kb())
+        row = tk.Frame(self.pw_box, bg=self.t["panel"])
+        row.pack(fill="x")
+        self.button(row, "Connect", self._connect, "primary", height=44, font=11).pack(
+            side="left", fill="x", expand=True, padx=(0, self.px(4)))
+        self.button(row, "Cancel", self._cancel_pw, "ghost", height=44, font=11).pack(
+            side="left", fill="x", expand=True)
+        self.pw_kb = OnScreenKeyboard(self.pw_box, self.app, on_key=self._pw_insert,
+                                      on_delete=self._pw_delete, on_move=self._pw_move,
+                                      on_send=self._connect, on_hide=self._hide_kb)
+        return pane
+
+    def _refresh_network(self):
+        self.app.run_async(self._gather_network, None, on_done=self._render_network)
+
+    def _gather_network(self):
+        info = network.status()
+        return info, (network.scan() if info["nmcli"] else [])
+
+    def _render_network(self, result):
+        info, nets = result
+        online = "online" if self.app.backend.online else "offline"
+        mcu = self.app.backend.detection.get("mcu_status", "offline")
+        self.net_info.configure(text=(f"IP: {info['ip']}\nWi-Fi: {info['ssid'] or 'not connected'}\n"
+                                      f"Interface: {info['iface'] or '-'}\nMoonraker: {online}\n"
+                                      f"MCU: {mcu}"))
+        if not info["nmcli"]:
+            self.net_msg.configure(text="Wi-Fi management needs NetworkManager (nmcli). Status is still shown.")
+        elif nets:
+            self.net_msg.configure(text=f"{len(nets)} networks found. Tap one to connect.")
+        else:
+            self.net_msg.configure(text="No networks found. Tap Scan to try again.")
+        self.net_list.clear()
+        for n in nets:
+            label = f"{n['ssid']}   {n['signal']}%" + ("   secured" if n["secured"] else "")
+            style = "primary" if n["ssid"] == info["ssid"] else "secondary"
+            self.net_list.add(label, lambda net=n: self._pick(net), style)
+
+    def _pick(self, net):
+        if not net["secured"]:
+            self._connect_to(net["ssid"], "")
+            return
+        self._pending = net["ssid"]
+        self.pw_label.configure(text=f"Password for {net['ssid']}")
+        self.pw_entry.delete(0, "end")
+        if not self.pw_box.winfo_ismapped():
+            self.pw_box.pack(fill="x", pady=(self.px(8), 0))
+
+    def _show_kb(self):
+        if not self.pw_kb.winfo_ismapped():
+            self.pw_kb.pack(fill="x", pady=(self.px(4), 0))
+
+    def _hide_kb(self):
+        self.pw_kb.pack_forget()
+
+    def _pw_insert(self, ch):
+        self.pw_entry.insert(tk.INSERT, ch)
+
+    def _pw_delete(self):
+        pos = self.pw_entry.index(tk.INSERT)
+        if pos > 0:
+            self.pw_entry.delete(pos - 1)
+
+    def _pw_move(self, delta):
+        pos = self.pw_entry.index(tk.INSERT)
+        self.pw_entry.icursor(max(0, min(len(self.pw_entry.get()), pos + delta)))
+
+    def _connect(self):
+        if self._pending:
+            self._connect_to(self._pending, self.pw_entry.get())
+
+    def _cancel_pw(self):
+        self._pending = None
+        self._hide_kb()
+        self.pw_box.pack_forget()
+
+    def _connect_to(self, ssid, password):
+        self._hide_kb()
+        self.net_msg.configure(text=f"Connecting to {ssid}...")
+        self.app.run_async(lambda: network.connect(ssid, password), None,
+                           on_done=lambda result: self._connected(result))
+
+    def _connected(self, result):
+        ok, message = result
+        self._pending = None
+        self.pw_entry.delete(0, "end")
+        self.pw_box.pack_forget()
+        self.app.toast(f"Wi-Fi: {message}", error=not ok)
+        self._refresh_network()
+
+    # ---- System: quit and pin assignments -----------------------------------
+    def _system(self):
+        pane = self.panel(self)
+        pad = self.px(12)
+        top = tk.Frame(pane, bg=self.t["panel"])
+        top.pack(fill="x", padx=pad, pady=(pad, 0))
+        self.quit_sw = Switch(top, "Allow to quit", self.app.toggle_quit, self.app,
+                              on=bool(self.app.settings.get("allow_quit")), height=44)
+        self.quit_sw.pack(fill="x")
+        self.quit_btn = self.button(top, "Quit", self.app.quit, "ghost", confirm=True,
+                                    height=64, font=12, icon=self.app.icon("quit", 26))
+        self.label(pane, "Klipper pin assignments (from printer.cfg, read-only)", 11, "bold",
+                   bg=self.t["panel"]).pack(anchor="w", padx=pad, pady=(self.px(10), 0))
+        self.pin_count = self.label(pane, "", 10, color=self.t["subtext"], bg=self.t["panel"])
+        self.pin_count.pack(anchor="w", padx=pad)
+        self.pin_list = ScrollList(pane, self.app, visible_rows=3, row_h=32, bg=self.t["panel"])
+        self.pin_list.pack(fill="both", expand=True, padx=pad, pady=(self.px(4), pad))
+        return pane
+
+    def _refresh_pins(self, pins):
+        key = tuple(pins)
+        if key == self._pin_key:
+            return
+        self._pin_key = key
+        self.pin_list.clear()
+        if not pins:
+            self.pin_count.configure(text="No pin settings found in the config folder.")
+            return
+        self.pin_count.configure(text=f"{len(pins)} pin settings")
+        for section, pin_key, value in pins:
+            self.pin_list.add(f"{section}  \u00b7  {pin_key} = {value}", None, "ghost")
+
+    # ---- refresh -----------------------------------------------------------
     def refresh(self, st, online, demo):
         s = self.app.settings
-        self.theme_btn.set_text(f"{self.app.theme.name}  ▼")
+        det = self.app.backend.detection
+        self.theme_btn.set_text(f"{self.app.theme.name}  \u25bc")
         self.pointer_sw.set_on(bool(s.get("mouse_pointer")))
         self.mmu_sw.set_on(bool(s.get("mmu_enabled")))
-        self.quit_sw.set_on(bool(s.get("allow_quit")))
         self.warning.configure(text=self.app.mmu_block_message())
-        if s.get("allow_quit") and not self._exit_shown:
-            self.exit_btn.pack(fill="x", pady=(0, self.px(6)))
-            self._exit_shown = True
-        elif not s.get("allow_quit") and self._exit_shown:
-            self.exit_btn.pack_forget()
-            self._exit_shown = False
-        family = s.get("printer_family")
-        name = self.printers.get(family, {}).get("name", "not set") if family else "not set"
-        model = s.get("printer_model") or ""
-        self.info.configure(text=f"Printer: {name} {model}   ·   Moonraker: {s.get('moonraker_url')}")
+        self.mmu_info.configure(text=f"Detected: {det.get('mmu_name', 'None detected')}")
+        self.quit_sw.set_on(bool(s.get("allow_quit")))
+        if s.get("allow_quit") and not self._quit_shown:
+            self.quit_btn.pack(fill="x", pady=(self.px(6), 0))
+            self._quit_shown = True
+        elif not s.get("allow_quit") and self._quit_shown:
+            self.quit_btn.pack_forget()
+            self._quit_shown = False
+        self._refresh_macros(det.get("macros") or [])
+        self._refresh_pins(det.get("pins") or [])

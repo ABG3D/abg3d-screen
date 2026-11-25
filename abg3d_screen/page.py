@@ -2,6 +2,7 @@
 import tkinter as tk
 from types import SimpleNamespace
 
+from .honeycomb import HexFrame
 from .widgets import Meter, RoundButton
 
 
@@ -12,10 +13,10 @@ def fmt_time(seconds):
     return f"{hours}h {minutes:02d}m" if hours else f"{minutes}m {secs:02d}s"
 
 
-class Page(tk.Frame):
+class Page(HexFrame):
     def __init__(self, master, app):
-        super().__init__(master, bg=app.theme["bg"])
         self.app = app
+        super().__init__(master, app)
         self.t = app.theme
         self.sc = app.scale
         self.build()

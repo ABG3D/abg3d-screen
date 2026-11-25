@@ -12,6 +12,7 @@ from .config import Settings
 from .theme import Scale, load_themes
 from .widgets import apply_cursor
 from .console import ConsolePage
+from .honeycomb import HexFrame
 from .dialogs import TempModal
 from .wizard import PrinterWizard
 from . import screens
@@ -157,27 +158,29 @@ class App:
         t, s = self.theme, self.scale
         self.root.configure(bg=t["bg"])
 
-        self.header = tk.Frame(self.root, bg=t["panel"], height=s.px(40))
+        self.header = HexFrame(self.root, self, height=s.px(40))
         self.header.pack(side="top", fill="x")
         self.header.pack_propagate(False)
+        hb = t["bg"]
         tk.Label(self.header, text="ABG3D", font=s.font(14, "bold"), fg=t["accent"],
-                 bg=t["panel"]).pack(side="left", padx=(s.px(12), 0))
+                 bg=hb).pack(side="left", padx=(s.px(12), 0))
         tk.Label(self.header, text="Screen", font=s.font(12), fg=t["text"],
-                 bg=t["panel"]).pack(side="left", padx=(s.px(4), s.px(16)))
+                 bg=hb).pack(side="left", padx=(s.px(4), s.px(16)))
         self.state_lbl = tk.Label(self.header, text="", font=s.font(12, "bold"),
-                                  fg=t["text"], bg=t["panel"])
+                                  fg=t["text"], bg=hb)
         self.state_lbl.pack(side="left")
-        self.clock_lbl = tk.Label(self.header, text="", font=s.font(12), fg=t["subtext"],
-                                  bg=t["panel"])
+        self.clock_lbl = tk.Label(self.header, text="", font=s.font(12), fg=t["subtext"], bg=hb)
         self.clock_lbl.pack(side="right", padx=s.px(12))
-        self.link_lbl = tk.Label(self.header, text="", font=s.font(11), fg=t["subtext"],
-                                 bg=t["panel"])
+        self.link_lbl = tk.Label(self.header, text="", font=s.font(11), fg=t["subtext"], bg=hb)
         self.link_lbl.pack(side="right", padx=s.px(8))
+        self.mcu_lbl = tk.Label(self.header, text="", font=s.font(11), fg=t["subtext"], bg=hb)
+        self.mcu_lbl.pack(side="right", padx=s.px(8))
 
-        self.tabbar = tk.Frame(self.root, bg=t["panel"], height=s.px(74))
+        self.tabbar = HexFrame(self.root, self, height=s.px(74))
         self.tabbar.pack(side="bottom", fill="x")
         self.tabbar.pack_propagate(False)
-        self.content = tk.Frame(self.root, bg=t["bg"])
+        self.content = HexFrame(self.root, self)
+        self.content.pack(fill="both", expand=True)
         self.content.pack(fill="both", expand=True)
         self.toast_lbl = tk.Label(self.root, text="", font=s.font(12), fg=t["text"],
                                   bg=t["panel_alt"], padx=s.px(14), pady=s.px(6))
@@ -258,15 +261,15 @@ class App:
 
     # ---- splash -------------------------------------------------------
     def _show_splash(self):
-        self._splash = tk.Frame(self.root, bg=SPLASH_BG)
+        self._splash = HexFrame(self.root, self)
         self._splash.place(x=0, y=0, relwidth=1, relheight=1)
         img = tk.PhotoImage(file=str(LOGO))
         factor = max(1, math.ceil(img.height() / (self.scale.height * 0.42)))
         self._splash_img = img.subsample(factor) if factor > 1 else img
-        logo = tk.Label(self._splash, image=self._splash_img, bg=SPLASH_BG, bd=0)
+        logo = tk.Label(self._splash, image=self._splash_img, bg=self.theme["bg"], bd=0)
         logo.place(relx=0.5, rely=0.42, anchor="center")
         tag = tk.Label(self._splash, text="Starting...", font=self.scale.font(10),
-                       fg="#6b7485", bg=SPLASH_BG)
+                       fg=self.theme["subtext"], bg=self.theme["bg"])
         tag.place(relx=0.5, rely=0.88, anchor="center")
         for widget in (self._splash, logo, tag):
             widget.bind("<ButtonRelease-1>", lambda _e: self._dismiss_splash())
@@ -299,6 +302,7 @@ class App:
 
     def _update_header(self, status, online, demo):
         t = self.theme
+        det = self.backend.detection
         state = (status.get("print_stats") or {}).get("state") or "standby"
         progress = float((status.get("display_status") or {}).get("progress") or 0) * 100
         if demo:
@@ -307,6 +311,8 @@ class App:
             text, color = f"Printing {progress:.0f}%", t["accent"]
         elif state == "error":
             text, color = "Error", t["danger"]
+        elif state == "standby" and det.get("mcu") == "no":
+            text, color = "Standby - No MCU", t["warn"]
         else:
             text, color = state.capitalize(), t["text"]
         self.state_lbl.configure(text=text, fg=color)
@@ -314,6 +320,9 @@ class App:
             self.link_lbl.configure(text="● online", fg=t["ok"])
         else:
             self.link_lbl.configure(text="● no Moonraker", fg=t["warn"])
+        mcu_ok = det.get("mcu_status") == "online"
+        self.mcu_lbl.configure(text="● MCU Online" if mcu_ok else "● MCU Offline",
+                               fg=t["ok"] if mcu_ok else t["danger"])
 
     def quit(self):
         self.backend.stop()

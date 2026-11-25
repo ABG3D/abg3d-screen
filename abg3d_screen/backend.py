@@ -19,6 +19,7 @@ from .moonraker import MoonrakerClient
 QUERY_OBJECTS = ["print_stats", "display_status", "virtual_sdcard", "toolhead",
                  "extruder", "heater_bed", "fan", "webhooks", "idle_timeout"]
 AMBIENT = 24.0
+DEMO_MACROS = ["PRINT_START", "PRINT_END", "PARK", "CLEAN_NOZZLE"]
 
 
 def _param(parts, letter):
@@ -124,6 +125,12 @@ class Backend:
         }
         info.update(detect.detect_printer_features(config, self.objects))
         info["leds"] = detect.led_names(self.objects)
+        if self.online:
+            info["macros"] = detect.macro_names(self.objects)
+        else:
+            info["macros"] = list(DEMO_MACROS) if self.demo else []
+        info["pins"] = detect.read_pins(config)
+        info["mcu_status"] = "online" if (self.online and info["mcu"] == "yes") else "offline"
         with self._lock:
             self.detection = info
         self._last_detect = time.time()

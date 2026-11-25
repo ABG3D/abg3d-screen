@@ -44,7 +44,7 @@ class MonitorView(tk.Frame):
         side = tk.Frame(self, bg=self.t["panel"], width=self.sc.px(200))
         side.pack(side="left", fill="y", padx=(0, self.sc.px(6)))
         side.pack_propagate(False)
-        tk.Label(side, text="Sensors", font=self.sc.font(12, "bold"), fg=self.t["text"],
+        tk.Label(side, text="Sensors", font=self.sc.font(12, "bold"), fg=self.t["accent"],
                  bg=self.t["panel"]).pack(anchor="w", padx=self.sc.px(10), pady=(self.sc.px(8), self.sc.px(4)))
         self.rows = tk.Frame(side, bg=self.t["panel"])
         self.rows.pack(fill="both", expand=True, padx=self.sc.px(6))

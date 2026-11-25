@@ -107,6 +107,45 @@ def led_names(objects):
     return sorted(names)
 
 
+MACRO_RE = re.compile(r"^gcode_macro (\S+)$")
+SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]")
+PIN_KEY_RE = re.compile(r"^\s*([a-z0-9_]*pin[a-z0-9_]*)\s*[:=]\s*(\S.*?)\s*$", re.IGNORECASE)
+
+
+def macro_names(objects):
+    """Klipper G-code macros: [gcode_macro NAME] sections."""
+    names = set()
+    for obj in objects:
+        match = MACRO_RE.match(obj)
+        if match:
+            names.add(match.group(1))
+    return sorted(names)
+
+
+def read_pins(config_dir, limit=400):
+    """(section, key, value) for every *pin* setting in the config files. Read only."""
+    pins = []
+    if not config_dir or not config_dir.is_dir():
+        return pins
+    for path in sorted(config_dir.rglob("*.cfg")):
+        try:
+            lines = path.read_text(errors="ignore").splitlines()
+        except OSError:
+            continue
+        section = ""
+        for line in lines:
+            header = SECTION_RE.match(line)
+            if header:
+                section = header.group(1)
+                continue
+            match = PIN_KEY_RE.match(line)
+            if match and section:
+                pins.append((section, match.group(1), match.group(2)))
+                if len(pins) >= limit:
+                    return pins
+    return pins
+
+
 def detect_printer_features(config_dir, objects):
     """Optional gantry tools. Only offered when the printer actually defines them."""
     cfg, _ = _config_scan(config_dir)
