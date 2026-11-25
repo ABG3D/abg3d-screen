@@ -31,6 +31,8 @@ TEXT_ON_FILL = {"primary", "ok", "danger"}
 
 
 class RoundButton(tk.Canvas):
+    drag_guard = None  # set by a scrollable parent; True means a drag happened, so no tap
+
     """Touch-friendly rounded button. Fires on release, so a drag-off cancels the tap."""
 
     def __init__(self, master, text, command, app, style="secondary", height=56,
@@ -106,6 +108,9 @@ class RoundButton(tk.Canvas):
         if not self.enabled or not self._down:
             return
         self._down = False
+        if self.drag_guard and self.drag_guard():
+            self.draw()
+            return
         inside = 0 <= event.x <= self.winfo_width() and 0 <= event.y <= self.winfo_height()
         if not inside:
             self.draw()
@@ -130,7 +135,11 @@ class RoundButton(tk.Canvas):
 
 
 class ScrollList(tk.Frame):
-    """Touch-scrollable list: clipped viewport, thumb track and up/down buttons."""
+    """Touch-scrollable list: clipped viewport, thumb track, up/down buttons and drag to scroll.
+
+    A press that moves further than a few pixels becomes a drag. Buttons inside the list
+    then ignore that release, so scrolling never fires a tap.
+    """
 
     def __init__(self, master, app, visible_rows=3, row_h=36, bg=None):
         self.app = app
@@ -143,6 +152,9 @@ class ScrollList(tk.Frame):
         self.clip_h = self.row_px * visible_rows
         self.offset = 0
         self.max_offset = 0
+        self.moved = False
+        self._start_y = None
+        self._last_y = None
         column = tk.Frame(self, bg=bg, width=self.sc.px(44))
         column.pack(side="right", fill="y")
         column.pack_propagate(False)
@@ -152,13 +164,15 @@ class ScrollList(tk.Frame):
         self.win = self.viewport.create_window(0, 0, window=self.inner, anchor="nw")
         self.viewport.bind("<Configure>", lambda _e: self._fit())
         self.inner.bind("<Configure>", lambda _e: self._fit())
-        RoundButton(column, "\u25b2", lambda: self.scroll(-1), app, "secondary",
+        RoundButton(column, "\u25b2", lambda: self.yview_scroll(-1, "units"), app, "secondary",
                     height=36, font=10).pack(fill="x", padx=2, pady=(2, 0))
         self.track = tk.Canvas(column, bg=bg, highlightthickness=0, bd=0)
         self.track.pack(fill="both", expand=True, padx=12, pady=4)
         self.track.bind("<Configure>", lambda _e: self._thumb())
-        RoundButton(column, "\u25bc", lambda: self.scroll(1), app, "secondary",
+        RoundButton(column, "\u25bc", lambda: self.yview_scroll(1, "units"), app, "secondary",
                     height=36, font=10).pack(fill="x", padx=2, pady=(0, 2))
+        self._bind_drag(self.viewport)
+        self._bind_drag(self.inner)
 
     def clear(self):
         for child in self.inner.winfo_children():
@@ -169,10 +183,32 @@ class ScrollList(tk.Frame):
     def add(self, text, command, style="secondary"):
         btn = RoundButton(self.inner, text, command, self.app, style, height=self.row_base, font=10)
         btn.pack(fill="x", padx=self.sc.px(4), pady=self.sc.px(3))
+        btn.drag_guard = lambda: self.moved
+        self._bind_drag(btn)
         return btn
 
-    def scroll(self, direction):
-        self.offset = max(0, min(self.max_offset, self.offset + direction * self.row_px))
+    def yview_scroll(self, number, what="units"):
+        """Scroll by rows ('units') or by a whole visible page ('pages'), like Tk's yview_scroll."""
+        step = self.row_px if what == "units" else self.clip_h
+        self.offset = max(0, min(self.max_offset, self.offset + number * step))
+        self._place()
+
+    def _bind_drag(self, widget):
+        widget.bind("<ButtonPress-1>", self._press, add="+")
+        widget.bind("<B1-Motion>", self._motion, add="+")
+
+    def _press(self, event):
+        self.moved = False
+        self._start_y = self._last_y = event.y_root
+
+    def _motion(self, event):
+        if self._last_y is None:
+            return
+        if not self.moved and abs(self._start_y - event.y_root) < self.sc.px(8):
+            return
+        self.moved = True
+        self.offset = max(0, min(self.max_offset, self.offset + self._last_y - event.y_root))
+        self._last_y = event.y_root
         self._place()
 
     def _fit(self):

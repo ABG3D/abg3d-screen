@@ -1,6 +1,6 @@
 """Entry point.
 
-    python3 -m abg3d_screen [--windowed] [--demo] [--no-splash] [--reset-setup]
+    python3 -m abg3d_screen [--windowed] [--demo] [--no-splash]
 """
 import argparse
 import sys
@@ -16,7 +16,6 @@ def main(argv=None):
     parser.add_argument("--no-splash", action="store_true", help="skip the splash screen")
     parser.add_argument("--simulate-mmu", choices=["happy_hare", "boxturtle_afc", "ktc"],
                         help="testing: pretend this MMU is detected (demo UI only)")
-    parser.add_argument("--reset-setup", action="store_true", help="run the printer wizard on start")
     args = parser.parse_args(argv)
 
     try:

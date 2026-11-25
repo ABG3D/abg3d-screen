@@ -13,7 +13,6 @@ DEFAULTS = {
     "mouse_pointer": True,          # True = pointer visible, False = hidden
     "moonraker_url": "http://127.0.0.1:7125",
     "show_splash": True,
-    "setup_done": False,
     "mmu_enabled": False,   # MMU tab only exists when this is on (and an MMU is detected)
     "allow_quit": False,    # the Quit button only appears when this is on
     "monitor_disabled": [],  # sensors the user has switched off on the Home monitor

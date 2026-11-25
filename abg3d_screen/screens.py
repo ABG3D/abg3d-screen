@@ -11,11 +11,8 @@ from .mmu import is_active, load_mmu_commands
 from .widgets import ScrollList, Switch, round_rect
 from . import network
 from .keyboard import OnScreenKeyboard
-from .wizard import load_printers
 
 JOG_FEED_XY, JOG_FEED_Z = 3000, 600
-# Klipper fan object for the hotend fan. Change this if your fan section has another name.
-HOTEND_FAN = "hotend_fan"
 PRINT_ACTIVE = ("printing", "paused")
 
 
@@ -238,11 +235,8 @@ class ControlPage(Page):
     def _build_fan(self):
         pad = self.px(12)
         pane = self.panel(self)
-        self.hotend_sw = Switch(pane, "Hotend fan", self._toggle_hotend, self.app, on=False,
-                                height=44)
-        self.hotend_sw.pack(fill="x", padx=pad, pady=(pad, 0))
         self.label(pane, "Part fan", 14, "bold", bg=self.t["panel"]).pack(
-            anchor="w", padx=pad, pady=(self.px(10), 0))
+            anchor="w", padx=pad, pady=(pad, 0))
         row = tk.Frame(pane, bg=self.t["panel"])
         row.pack(fill="x", padx=pad, pady=(self.px(4), 0))
         for name, value in self.FAN_STEPS:
@@ -259,11 +253,6 @@ class ControlPage(Page):
                         height=70, font=13).pack(side="left", fill="x", expand=True, padx=3)
         self._bedfan_shown = False
         return pane
-
-    def _toggle_hotend(self):
-        on = self.hotend_sw.on
-        self.gcode(f"SET_FAN_SPEED FAN={HOTEND_FAN} SPEED={'1.0' if on else '0.0'}",
-                   f"Hotend fan {'on' if on else 'off'}")
 
     def _build_led(self):
         pad = self.px(12)
@@ -460,7 +449,6 @@ class SettingsPage(Page):
 
     def build(self):
         pad = self.px(12)
-        self.printers = load_printers()
         self.sub = None
         self.dropdown = None
         self._macro_key = None

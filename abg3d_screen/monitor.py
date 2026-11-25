@@ -99,8 +99,9 @@ class MonitorView(tk.Frame):
             row = tk.Canvas(self.rows.inner, height=self.sc.px(46), bg=self.t["panel"],
                             highlightthickness=0, bd=0)
             row.pack(fill="x", pady=self.sc.px(3))
-            row.bind("<ButtonRelease-1>", lambda _e, o=obj: self._toggle(o))
+            row.bind("<ButtonRelease-1>", lambda _e, o=obj: None if self.rows.moved else self._toggle(o))
             row.bind("<Configure>", lambda _e, o=obj: self._draw_row(o))
+            self.rows._bind_drag(row)
             self._rows[obj] = row
 
     def _redraw_rows(self):

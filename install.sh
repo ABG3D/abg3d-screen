@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# abg3d-screen installer for Raspberry Pi 4B (1 GB) with a touchscreen.
+# abg3d-screen installer for Raspberry Pi 3B, Raspberry Pi 4B, BigTreeTech CB1, CB2, Pi 1 and Pi 2.
 # Run as the normal user that runs Klipper (for example "pi"). Do not run as root.
 set -euo pipefail
 
@@ -44,8 +44,9 @@ esac
 
 MODEL="$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo unknown)"
 case "$MODEL" in
-  *"Raspberry Pi 4"*) ;;
-  *) warn "Target is Raspberry Pi 4B. Detected: ${MODEL}." ;;
+  *"Raspberry Pi 3"*|*"Raspberry Pi 4"*|*"BigTreeTech CB1"*|*"BigTreeTech CB2"*|*"BigTreeTech Pi"*|*"BTT Pi"*)
+    info "Supported board: ${MODEL}" ;;
+  *) warn "Board not in the supported list (Raspberry Pi 3B/4B, BigTreeTech CB1/CB2/Pi 1/Pi 2). Detected: ${MODEL}. Continuing." ;;
 esac
 MEM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
 SWAP_MB="$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)"
@@ -53,7 +54,7 @@ SWAP_MB="$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)"
 if [[ "$SWAP_MB" -lt 512 ]]; then
   warn "Swap is ${SWAP_MB} MB. Use 512 MB or more on a 1 GB Pi to avoid out-of-memory during install."
 fi
-[[ "$(uname -m)" == "aarch64" ]] || warn "64-bit OS recommended (detected $(uname -m))."
+info "Architecture: $(uname -m)"
 
 # ---------------------------------------------------------------- 1. system packages
 info "Installing system packages (prebuilt only, no compilation)"

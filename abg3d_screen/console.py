@@ -49,7 +49,18 @@ class ConsolePage(Page):
         self.log = tk.Text(self.log_frame, state="disabled", wrap="word", bd=0, height=6,
                            bg=self.t["panel"], fg=self.t["subtext"], highlightthickness=0,
                            font=("DejaVu Sans Mono", self.font(10)[1]), padx=8, pady=6)
-        self.log.pack(fill="both", expand=True)
+        scrollcol = tk.Frame(self.log_frame, bg=self.t["panel"], width=self.px(44))
+        scrollcol.pack(side="right", fill="y")
+        scrollcol.pack_propagate(False)
+        self.button(scrollcol, "\u25b2", lambda: self.log.yview_scroll(-3, "units"), "secondary",
+                    height=44, font=10).pack(fill="x", padx=2, pady=(2, 0))
+        self.button(scrollcol, "\u25bc", lambda: self.log.yview_scroll(3, "units"), "secondary",
+                    height=44, font=10).pack(fill="x", padx=2, pady=(0, 2))
+        self.log.pack(side="left", fill="both", expand=True)
+        self._touch_y = None
+        self._touch_acc = 0
+        self.log.bind("<ButtonPress-1>", self._touch_press, add="+")
+        self.log.bind("<B1-Motion>", self._touch_move, add="+")
         self.log.tag_configure("cmd", foreground=self.t["accent"])
 
     # ---- lifecycle ----------------------------------------------------
@@ -80,6 +91,21 @@ class ConsolePage(Page):
         self.log.configure(state="disabled")
         if self.auto_scroll:
             self.log.see("end")
+
+    def _touch_press(self, event):
+        self._touch_y = event.y_root
+        self._touch_acc = 0
+
+    def _touch_move(self, event):
+        if self._touch_y is None:
+            return
+        self._touch_acc += self._touch_y - event.y_root
+        self._touch_y = event.y_root
+        unit = self.px(16)
+        lines = int(self._touch_acc / unit)
+        if lines:
+            self.log.yview_scroll(lines, "units")
+            self._touch_acc -= lines * unit
 
     def _clear(self):
         self._offset = len(self._all)

@@ -14,7 +14,6 @@ from .widgets import apply_cursor
 from .console import ConsolePage
 from .honeycomb import HexFrame
 from .dialogs import TempModal
-from .wizard import PrinterWizard
 from . import screens
 
 ICON_DIR = ASSETS_DIR / "icons"
@@ -251,17 +250,6 @@ class App:
     def open_temp_modal(self, nozzle_target=0, bed_target=0):
         TempModal(self.root, self, int(round(nozzle_target)), int(round(bed_target)))
 
-    def open_wizard(self, family=None):
-        PrinterWizard(self.root, self, on_done=self._wizard_done, family=family)
-
-    def _wizard_done(self, theme_key, family, model):
-        if family:
-            self.settings.update(setup_done=True, printer_family=family, printer_model=model)
-        else:
-            self.settings.update(setup_done=True)
-        if theme_key:
-            self.root.after_idle(lambda: self.apply_theme(theme_key))
-
     # ---- splash -------------------------------------------------------
     def _show_splash(self):
         self._splash = HexFrame(self.root, self)
@@ -289,8 +277,8 @@ class App:
         self._after_splash()
 
     def _after_splash(self):
-        if not self.settings.get("setup_done") or self.args.reset_setup:
-            self.open_wizard()
+        """Splash finished. The Home screen is already showing."""
+        return
 
     # ---- main loop ----------------------------------------------------
     def _tick(self):
