@@ -46,7 +46,7 @@ All paths are lowercase. install.sh refuses to run if any path contains an upper
 1. Clone the repository on the Pi:
    ```bash
    cd ~
-   git clone https://github.com/<your-account>/abg3d-screen.git
+   git clone https://github.com/ABG3D/abg3d-screen.git
    cd abg3d-screen
    ```
 2. Make the scripts executable and run the installer as your normal user, not with sudo:
