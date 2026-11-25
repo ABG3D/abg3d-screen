@@ -1,0 +1,8 @@
+# abg3d-screen runtime dependencies.
+#
+# The UI uses only the Python standard library and Tkinter. Tkinter comes from the
+# prebuilt apt package python3-tk, so nothing needs compiling on the Pi.
+# No pip packages are needed at runtime.
+#
+# Developer only (tools/make_assets.py regenerates artwork). Install by hand, not by install.sh:
+# pillow>=10.0

@@ -1,0 +1,39 @@
+{
+  "happy_hare": {
+    "name": "Happy Hare",
+    "gates": 4,
+    "note": "Happy Hare standard macros. Confirm names against your Happy Hare version.",
+    "actions": [
+      {"label": "Status", "gcode": "MMU_STATUS"},
+      {"label": "Home", "gcode": "MMU_HOME"},
+      {"label": "Load", "gcode": "MMU_LOAD"},
+      {"label": "Unload", "gcode": "MMU_UNLOAD"},
+      {"label": "Eject", "gcode": "MMU_EJECT"}
+    ],
+    "select_template": "MMU_SELECT GATE={n}",
+    "select_label": "Gate {n}"
+  },
+  "boxturtle_afc": {
+    "name": "Box Turtle / AFC",
+    "gates": 4,
+    "note": "AFC external macros from afcproject.dev (BT_* commands).",
+    "actions": [
+      {"label": "Prep", "gcode": "BT_PREP"},
+      {"label": "Unload tool", "gcode": "BT_TOOL_UNLOAD"},
+      {"label": "Resume", "gcode": "BT_RESUME"}
+    ],
+    "select_template": "BT_CHANGE_TOOL LANE={n}",
+    "select_label": "Load lane {n}",
+    "gate_actions": [
+      {"label": "Eject lane {n}", "gcode": "BT_LANE_EJECT LANE={n}"}
+    ]
+  },
+  "ktc": {
+    "name": "KTC",
+    "gates": 4,
+    "note": "Tool-change commands are placeholders. Edit to match your KTC macros.",
+    "actions": [],
+    "select_template": "T{n}",
+    "select_label": "Tool {n}"
+  }
+}

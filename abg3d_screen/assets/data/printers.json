@@ -1,0 +1,6 @@
+{
+  "voron": {"name": "Voron", "theme": "voron", "image": "printers/voron.png", "models": ["Trident", "2.4", "Switchwire", "0.2 / 0.1", "Other Voron"]},
+  "ratrig": {"name": "Rat Rig", "theme": "ratrig", "image": "printers/ratrig.png", "models": ["V-Core 3", "V-Core 4", "V-Minion", "Micro / Other"]},
+  "vzbot": {"name": "VzBot", "theme": "vzbot", "image": "printers/vzbot.png", "models": ["Axis", "235", "300", "350", "Fleet", "Other VzBot"]},
+  "rh3dng": {"name": "RH3D NG", "theme": "rh3d", "image": "printers/rh3dng.png", "models": ["NG Standard", "NG Large", "Other RH3D NG"]}
+}
