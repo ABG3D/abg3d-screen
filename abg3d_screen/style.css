@@ -1,0 +1,196 @@
+/* abg3d-screen CSS template. @TOKENS@ are replaced from theme.Ui (sizes) and theme.THEMES (colours).
+   Containers stay transparent so the Cairo honeycomb painted on the window shows through. */
+* { -gtk-outline-radius: 0; outline-width: 0; }
+
+window.abg3d {
+  background-color: transparent;
+  background-image: none;
+  color: @FG@;
+  font-family: "DejaVu Sans", "Noto Sans", Sans;
+  font-size: @FS@px;
+}
+box, grid, stack, viewport, scrolledwindow, revealer, overlay, flowbox, flowboxchild, list, notebook {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+}
+/* nested containers never impose a minimum height: pages shrink to the screen and scroll */
+box, grid, stack, viewport, scrolledwindow, revealer, overlay, flowbox { min-height: 0; }
+label { color: @FG@; }
+.icon { color: @FG@; }
+
+/* -------- header -------- */
+.header {
+  min-height: @HEADER@px;
+  padding: 0 @SP@px;
+  background-color: @SURFACE_A@;
+  border-bottom: 1px solid @BORDER@;
+}
+.brand { font-weight: 900; font-size: @FS_L@px; letter-spacing: 2px; color: @ACCENT@; }
+.pill {
+  padding: 1px @PAD@px;
+  border-radius: 99px;
+  font-size: @FS_S@px;
+  background-color: @SURFACE2_A@;
+  border: 1px solid @BORDER@;
+}
+.pill.on { color: @OK@; border-color: @OK@; }
+.pill.off { color: @BAD@; border-color: @BAD@; }
+.badge {
+  padding: 1px @PAD@px;
+  border-radius: 6px;
+  font-size: @FS_S@px;
+  font-weight: bold;
+  background-color: @WARN@;
+  color: #ffffff;
+}
+
+/* -------- navigation -------- */
+.nav-rail { background-color: @SURFACE_A@; border-right: 1px solid @BORDER@; padding: @SP@px; }
+.nav-bar { background-color: @SURFACE_A@; border-top: 1px solid @BORDER@; padding: 1px @SP@px; }
+button.nav { font-size: @FS_S@px; font-weight: bold; padding: 0 2px; min-height: @NAVH@px; }
+button.header-estop { min-height: @HDRBTN@px; min-width: @TOUCH@px; padding: 0; }
+.nav-bar button.nav { min-width: @NAVH@px; }
+button.nav:checked .icon, button.nav:checked label { color: @ACCENT_FG@; }
+
+/* -------- buttons -------- */
+button, radiobutton, togglebutton {
+  min-height: @TOUCH@px;
+  min-width: @TOUCH@px;
+  padding: 0 @PAD@px;
+  border-radius: @RAD@px;
+  border: 1px solid @BORDER@;
+  background-image: none;
+  background-color: @SURFACE2_A@;
+  color: @FG@;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+}
+button label, button .icon { color: @FG@; }
+button:hover { background-color: @SURFACE2@; }
+button:active, button:checked {
+  background-color: @ACCENT@;
+  border-color: @ACCENT@;
+}
+button:active label, button:checked label, button:active .icon, button:checked .icon { color: @ACCENT_FG@; }
+button:disabled { background-color: @SURFACE_A@; border-color: @SURFACE2@; }
+button:disabled label, button:disabled .icon { color: @MUTED@; }
+button.iconbtn { padding: 0; }
+button.primary { background-color: @ACCENT@; border-color: @ACCENT@; }
+button.primary label, button.primary .icon { color: @ACCENT_FG@; }
+button.danger { background-color: @DANGER@; border-color: @DANGER_HI@; }
+button.danger label, button.danger .icon { color: #ffffff; }
+button.danger:active { background-color: @DANGER_HI@; }
+button.warn { background-color: @WARN@; border-color: @WARN@; }
+button.warn label, button.warn .icon { color: #ffffff; }
+button.homed { border-color: @OK@; }
+button.homed .icon, button.homed label { color: @OK@; }
+button.jog { font-weight: bold; font-size: @FS_L@px; }
+button.key { font-size: @FS_L@px; min-height: @TOUCH@px; min-width: @TOUCH@px; }
+button.kbkey { min-height: @KEY@px; min-width: 20px; padding: 0 1px; }
+button.flat-row { background-color: transparent; border-color: transparent; padding: 0; }
+button.flat-row:active { background-color: @ACCENT_SOFT@; }
+button.dropdown { padding: 0 @PAD@px; }
+button.dropdown-item.selected { border-color: @ACCENT@; }
+button.dropdown-item.selected label { color: @ACCENT@; font-weight: bold; }
+
+.subtabs { padding-bottom: @SP@px; }
+
+/* -------- surfaces -------- */
+.card {
+  background-color: @SURFACE_A@;
+  border: 1px solid @BORDER@;
+  border-radius: @RAD@px;
+  padding: @PAD@px;
+}
+.row {
+  background-color: @SURFACE_A@;
+  border: 1px solid @BORDER@;
+  border-radius: @RAD@px;
+  padding: 2px @PAD@px;
+}
+.panel { padding: @PAD@px; }
+.title { font-weight: bold; }
+.section { font-weight: bold; color: @ACCENT@; }
+.section-row .icon { color: @ACCENT@; }
+.section-row, label.section { margin-top: @SP@px; }
+.muted { color: @MUTED@; }
+.small { font-size: @FS_S@px; }
+.value { font-family: "DejaVu Sans Mono", Monospace; }
+.big { font-size: @FS_L@px; font-weight: bold; font-family: "DejaVu Sans Mono", Monospace; }
+.good { color: @OK@; }
+.bad { color: @BAD@; }
+.warn-text { color: @WARN@; }
+.sensor-row.off label { color: @MUTED@; }
+.sensor-temp { font-family: "DejaVu Sans Mono", Monospace; font-weight: bold; }
+.graph { color: @FG@; }
+
+.banner { background-color: rgba(120, 30, 24, 0.92); padding: 2px @PAD@px; }
+.banner label { color: #ffe1dc; font-weight: bold; font-size: @FS_S@px; }
+
+.toast {
+  background-color: @SURFACE2@;
+  border: 1px solid @BORDER@;
+  border-radius: @RAD@px;
+  padding: @PAD@px @PAD2@px;
+}
+.toast.error { background-color: #6b1f1a; border-color: @DANGER_HI@; }
+.toast.error label { color: #ffffff; }
+
+.modal-bg { background-color: @MODAL_BG@; }
+.modal {
+  background-color: @SURFACE@;
+  border: 1px solid @BORDER@;
+  border-radius: @RAD@px;
+  padding: @PAD2@px;
+}
+.modal-title { font-size: @FS_L@px; font-weight: bold; }
+.keypad-display {
+  font-size: @FS_XL@px;
+  font-family: "DejaVu Sans Mono", Monospace;
+  background-color: @BG@;
+  border-radius: @RAD@px;
+  padding: 2px @PAD@px;
+  min-width: 140px;
+}
+.keyboard { background-color: @BG@; padding: @SP@px; border-radius: @RAD@px; }
+.blank { background-color: #000000; }
+
+progressbar trough { min-height: @HALF@px; border-radius: @RAD@px; background-color: @BG@; border: none; }
+progressbar progress { min-height: @HALF@px; border-radius: @RAD@px; background-color: @ACCENT@; border: none; }
+progressbar text { color: @FG@; font-size: @FS_S@px; }
+
+switch {
+  min-width: @TOUCH@px; min-height: @HALF@px; padding: 3px;
+  border-radius: 99px; background-color: @SURFACE2@; border: 1px solid @BORDER@;
+}
+switch:checked { background-color: @ACCENT@; }
+switch slider { min-width: @HALF@px; min-height: @HALF@px; border-radius: 99px; background-color: @FG@; border: none; }
+
+scrollbar { background-color: transparent; border: none; }
+scrollbar slider { min-width: 5px; min-height: 24px; background-color: @BORDER@; border-radius: 3px; border: none; }
+
+row.filerow { padding: @SP@px; border-bottom: 1px solid @BORDER@; background-color: transparent; }
+row.filerow:hover, row.filerow:active { background-color: @ACCENT_SOFT@; }
+.thumb { background-color: @SURFACE2_A@; border-radius: @RAD@px; }
+
+entry {
+  min-height: @TOUCH@px;
+  background-color: @BG@;
+  color: @FG@;
+  border: 1px solid @BORDER@;
+  border-radius: @RAD@px;
+  padding: 0 @PAD@px;
+  font-family: "DejaVu Sans Mono", Monospace;
+  caret-color: @ACCENT@;
+}
+entry:focus { border-color: @ACCENT@; }
+textview.console, textview.console text {
+  background-color: rgba(0, 0, 0, 0.35);
+  color: @FG@;
+  font-family: "DejaVu Sans Mono", Monospace;
+  font-size: @FS_S@px;
+}
+.console-frame { border: 1px solid @BORDER@; border-radius: @RAD@px; }
+flowboxchild { padding: 0; }
