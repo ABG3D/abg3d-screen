@@ -504,7 +504,10 @@ class Moonraker:
         """Mainsail DB namespace over REST (independent of the websocket / Klipper state)."""
         def done(res, err):
             if err:
-                self.emit("error", "Mainsail database: %s" % err.get("message", "unavailable"))
+                # a missing "mainsail" namespace is normal on non-Mainsail setups: only report on request
+                log.info("mainsail database unavailable: %s", err.get("message"))
+                if cb:
+                    self.emit("error", "Mainsail database: %s" % err.get("message", "unavailable"))
                 return
             val = (res or {}).get("value", {})
             self.mainsail = val if isinstance(val, dict) else {}

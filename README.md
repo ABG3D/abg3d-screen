@@ -1,4 +1,4 @@
-# abg3d-screen
+# ABG3D - Klipper Screen Interface
 
 Lightweight, low-RAM Klipper touchscreen UI for Raspberry Pi and BTT single-board computers.
 Python 3 + GTK 3 (PyGObject) + Cairo, talking to Moonraker (`127.0.0.1:7125`) with Mainsail
@@ -6,15 +6,75 @@ database integration (temperature presets, cooldown G-code, macro visibility).
 
 ## Supported hardware
 
-| Boards | Displays |
-| --- | --- |
-| Raspberry Pi 3B / 4B | 4.3" 480x272 or 800x480 |
-| BTT CB1, BTT CB2 | 5" 800x480 |
-| BTT Pi 1, BTT Pi 2 | 7" 800x480 or 1024x600 |
+Any listed board works with any listed display.
+
+**Supported Boards**
+
+- Raspberry Pi 3B
+- Raspberry Pi 4B
+- BigTreeTech CB1
+- BigTreeTech CB2
+- BigTreeTech Pi 1
+- BigTreeTech Pi 2
+
+**Supported Displays**
+
+- 4.3" (480x272 / 800x480)
+- 5" (800x480)
+- 7" (800x480 / 1024x600)
 
 The active resolution and DPI are read from `Gdk.Monitor` at startup. Fonts, padding, icons and
 grid density scale from that, with touch targets of at least 48 px on 5"/7" panels and 40 px on
 4.3" panels. If your panel reports a wrong physical size, set `diagonal` in the config.
+
+## Screenshots
+
+These were rendered headless (Xvfb) from the real GTK 3 UI against Moonraker mock data. They show
+the responsive scaling and the honeycomb backdrop at each supported size. A 4.3" 800x480 panel and
+a 7" 800x480 panel use the same layout as the 5" screenshots; text and touch targets are scaled
+from the detected DPI.
+
+### 4.3" — 480x272
+
+Compact profile: icon-only bottom navigation and 40 px minimum touch targets.
+
+![4.3" — 480x272 home](images/4_3in_480x272_home.png)
+
+| | |
+| --- | --- |
+| **Control › Movement**<br>![4.3" — 480x272 Control › Movement](images/4_3in_480x272_control_move.png) | **Control › Temperature**<br>![4.3" — 480x272 Control › Temperature](images/4_3in_480x272_control_temp.png) |
+| **Files**<br>![4.3" — 480x272 Files](images/4_3in_480x272_files.png) | **Console**<br>![4.3" — 480x272 Console](images/4_3in_480x272_console.png) |
+| **MMU (BoxTurtle AFC)**<br>![4.3" — 480x272 MMU (BoxTurtle AFC)](images/4_3in_480x272_mmu.png) | **System**<br>![4.3" — 480x272 System](images/4_3in_480x272_system.png) |
+| **Settings**<br>![4.3" — 480x272 Settings](images/4_3in_480x272_settings.png) | **Keypad**<br>![4.3" — 480x272 Keypad](images/4_3in_480x272_keypad.png) |
+| **Standby (Moonraker / MCU offline)**<br>![4.3" — 480x272 Standby (Moonraker / MCU offline)](images/4_3in_480x272_standby.png) | |
+
+### 5" — 800x480
+
+Side navigation rail with 48 px touch targets, tuned to fit 480 px of height exactly.
+
+![5" — 800x480 home](images/5in_800x480_home.png)
+
+| | |
+| --- | --- |
+| **Control › Movement**<br>![5" — 800x480 Control › Movement](images/5in_800x480_control_move.png) | **Control › Temperature**<br>![5" — 800x480 Control › Temperature](images/5in_800x480_control_temp.png) |
+| **Files**<br>![5" — 800x480 Files](images/5in_800x480_files.png) | **Console**<br>![5" — 800x480 Console](images/5in_800x480_console.png) |
+| **MMU (BoxTurtle AFC)**<br>![5" — 800x480 MMU (BoxTurtle AFC)](images/5in_800x480_mmu.png) | **System**<br>![5" — 800x480 System](images/5in_800x480_system.png) |
+| **Settings**<br>![5" — 800x480 Settings](images/5in_800x480_settings.png) | **Keypad**<br>![5" — 800x480 Keypad](images/5in_800x480_keypad.png) |
+| **Standby (Moonraker / MCU offline)**<br>![5" — 800x480 Standby (Moonraker / MCU offline)](images/5in_800x480_standby.png) | |
+
+### 7" — 1024x600
+
+Scaled-up fonts, icons and spacing for 1024x600 panels.
+
+![7" — 1024x600 home](images/7in_1024x600_home.png)
+
+| | |
+| --- | --- |
+| **Control › Movement**<br>![7" — 1024x600 Control › Movement](images/7in_1024x600_control_move.png) | **Control › Temperature**<br>![7" — 1024x600 Control › Temperature](images/7in_1024x600_control_temp.png) |
+| **Files**<br>![7" — 1024x600 Files](images/7in_1024x600_files.png) | **Console**<br>![7" — 1024x600 Console](images/7in_1024x600_console.png) |
+| **MMU (BoxTurtle AFC)**<br>![7" — 1024x600 MMU (BoxTurtle AFC)](images/7in_1024x600_mmu.png) | **System**<br>![7" — 1024x600 System](images/7in_1024x600_system.png) |
+| **Settings**<br>![7" — 1024x600 Settings](images/7in_1024x600_settings.png) | **Keypad**<br>![7" — 1024x600 Keypad](images/7in_1024x600_keypad.png) |
+| **Standby (Moonraker / MCU offline)**<br>![7" — 1024x600 Standby (Moonraker / MCU offline)](images/7in_1024x600_standby.png) | |
 
 ## Required packages
 

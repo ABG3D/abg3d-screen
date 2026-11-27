@@ -230,7 +230,7 @@ ok "Previous touchscreen state saved to $STATE_FILE"
 info "Installing application to $APP_DIR"
 $SUDO mkdir -p "$APP_DIR"
 $SUDO rm -rf "$APP_DIR/abg3d_screen" "$APP_DIR/scripts"
-tar -C "$SRC_DIR" --exclude=./venv --exclude=./.git --exclude='__pycache__' -cf - . | $SUDO tar -C "$APP_DIR" -xf -
+tar -C "$SRC_DIR" --exclude=./venv --exclude=./.git --exclude=./images --exclude='__pycache__' -cf - . | $SUDO tar -C "$APP_DIR" -xf -
 $SUDO chown -R "$USER_NAME": "$APP_DIR"
 chmod +x "$APP_DIR/scripts/launch.sh" "$APP_DIR/install.sh" "$APP_DIR/uninstall.sh" 2>/dev/null || true
 

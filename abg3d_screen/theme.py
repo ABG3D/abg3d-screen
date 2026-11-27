@@ -95,7 +95,9 @@ class Ui:
             self.nav_btn_h = max(self.min_touch, min(self.touch, avail // 7 - self.sp // 2))
         else:
             self.nav_btn_h = self.min_touch
-        self.nav_size = max(self.touch, int(round(76 * self.scale))) if self.nav_left else self.nav_btn_h
+        # rail wide enough for the longest label ("Settings") at the scaled small font
+        self.nav_size = (max(self.touch, int(round(76 * self.scale)), int(self.fs_s * 5.6) + 14)
+                         if self.nav_left else self.nav_btn_h)
         self.nav_labels = not self.small
         self.cols = 3 if self.w < 600 else 4 if self.w < 900 else 5
         self.thumb_home = 0 if self.small else int(min(150, self.h * 0.26))
